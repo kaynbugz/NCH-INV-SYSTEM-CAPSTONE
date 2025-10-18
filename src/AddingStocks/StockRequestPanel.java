@@ -1,9 +1,8 @@
-
 package AddingStocks;
 
-
- import requestpanelsSYSTEM.*;
+    import requestpanelsSYSTEM.*;
     import com.toedter.calendar.JDateChooser;
+import dashboardSYSTEM.homepageSYSTEM;
     import static groovy.ui.text.FindReplaceUtility.dispose;
     import java.awt.BorderLayout;
     import java.awt.Color;
@@ -76,46 +75,62 @@ package AddingStocks;
     import javax.swing.table.JTableHeader;
 
 
-public class StockRequestPanel extends javax.swing.JPanel {
+    
 
-    
-    
+    public class StockRequestPanel extends javax.swing.JPanel {
+
     public StockRequestPanel() {
         initComponents();
         loadStockRequestedTable();
-        
-        // reload when search changes
+        loadStockHistorydTable();
+
+        // reload requested table when search changes
         searchfield.getDocument().addDocumentListener(new DocumentListener() {
             public void insertUpdate(DocumentEvent e) { loadStockRequestedTable(); }
             public void removeUpdate(DocumentEvent e) { loadStockRequestedTable(); }
             public void changedUpdate(DocumentEvent e) { loadStockRequestedTable(); }
         });
 
-        // reload when date range changes
-        PropertyChangeListener dateListener = evt -> {
+        // reload requested table when date changes
+        PropertyChangeListener requestedDateListener = evt -> {
             if ("date".equals(evt.getPropertyName())) {
                 loadStockRequestedTable();
             }
         };
-        fromdate.addPropertyChangeListener(dateListener);
-        todate.addPropertyChangeListener(dateListener);
+        fromdate.addPropertyChangeListener(requestedDateListener);
+        todate.addPropertyChangeListener(requestedDateListener);
 
+        // reload history table when search changes
+        searchfieldh.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { loadStockHistorydTable(); }
+            public void removeUpdate(DocumentEvent e) { loadStockHistorydTable(); }
+            public void changedUpdate(DocumentEvent e) { loadStockHistorydTable(); }
+        });
+
+        // reload history table when date changes
+        PropertyChangeListener historyDateListener = evt -> {
+            if ("date".equals(evt.getPropertyName())) {
+                loadStockHistorydTable();
+            }
+        };
+        fdateh.addPropertyChangeListener(historyDateListener);
+        todateh.addPropertyChangeListener(historyDateListener);
     }
-    
-    public void loadStockRequestedTable() {
-       DefaultTableModel model = (DefaultTableModel) stockrequestedtable.getModel();
+
+  private void loadStockTable(DefaultTableModel model, JTextField searchField, JDateChooser fromDate, JDateChooser toDate,
+                            JTextField totalReqField, JTextField totalQtyField, JTextField totalMedsField,
+                            String statusFilter) {
+
     model.setRowCount(0);
 
     String dbURL = "jdbc:sqlserver://localhost:1433;databaseName=nchdbase;encrypt=true;trustServerCertificate=true";
     String dbUser = "admin";
     String dbPass = "yeyel2025";
 
-    // get date filters
-    java.util.Date from = fromdate.getDate();
-    java.util.Date to = todate.getDate();
-    String search = searchfield.getText().trim();
+    java.util.Date from = fromDate.getDate();
+    java.util.Date to = toDate.getDate();
+    String search = searchField.getText().trim();
 
-    // base query
     StringBuilder query = new StringBuilder("""
         SELECT 
             request_id,
@@ -127,10 +142,9 @@ public class StockRequestPanel extends javax.swing.JPanel {
             COUNT(DISTINCT generic_id) AS total_medicines,
             SUM(quantity_requested) AS total_quantity_requested
         FROM stock_request_medicines
-        WHERE 1=1
+        WHERE stock_status = ?
     """);
 
-    // dynamic filters
     if (from != null && to != null) {
         query.append(" AND request_date BETWEEN ? AND ? ");
     }
@@ -160,6 +174,7 @@ public class StockRequestPanel extends javax.swing.JPanel {
          PreparedStatement pst = conn.prepareStatement(query.toString())) {
 
         int paramIndex = 1;
+        pst.setString(paramIndex++, statusFilter); // filter by status
 
         if (from != null && to != null) {
             pst.setDate(paramIndex++, new java.sql.Date(from.getTime()));
@@ -195,16 +210,36 @@ public class StockRequestPanel extends javax.swing.JPanel {
             }
         }
 
-        // update totals in textfields
-        trequested.setText(String.valueOf(totalRequests));
-        totalqtyrequested.setText(String.valueOf(grandTotalQty));
-        totalmedicines.setText(String.valueOf(grandTotalMeds));
+        totalReqField.setText(String.valueOf(totalRequests));
+        totalQtyField.setText(String.valueOf(grandTotalQty));
+        totalMedsField.setText(String.valueOf(grandTotalMeds));
 
     } catch (SQLException e) {
         JOptionPane.showMessageDialog(null, "Error loading data: " + e.getMessage());
     }
+}
+ 
+    
+    public void loadStockRequestedTable() {
+        loadStockTable(
+            (DefaultTableModel) stockreqtable.getModel(),
+            searchfield, fromdate, todate,
+            trequested, totalqtyrequested, totalmedicines,
+            "Pending Stocks"
+        );
     }
 
+
+    public void loadStockHistorydTable() {
+        loadStockTable(
+            (DefaultTableModel) stockhistorytable.getModel(),
+            searchfieldh, fdateh, todateh,
+            trequestedh, totalqtyrequestedh, totalmedicinesh,
+            "Approved"
+        );
+    }
+
+    
 
 
     @SuppressWarnings("unchecked")
@@ -216,7 +251,7 @@ public class StockRequestPanel extends javax.swing.JPanel {
         jTabbedPane2 = new javax.swing.JTabbedPane();
         jPanel2 = new javax.swing.JPanel();
         jScrollPane1 = new javax.swing.JScrollPane();
-        stockrequestedtable = new javax.swing.JTable();
+        stockreqtable = new javax.swing.JTable();
         jLabel2 = new javax.swing.JLabel();
         searchfield = new javax.swing.JTextField();
         fromdate = new com.toedter.calendar.JDateChooser();
@@ -235,6 +270,27 @@ public class StockRequestPanel extends javax.swing.JPanel {
         totalmedicines = new javax.swing.JTextField();
         jButton3 = new javax.swing.JButton();
         jPanel3 = new javax.swing.JPanel();
+        jPanel4 = new javax.swing.JPanel();
+        jScrollPane2 = new javax.swing.JScrollPane();
+        stockhistorytable = new javax.swing.JTable();
+        jLabel9 = new javax.swing.JLabel();
+        searchfieldh = new javax.swing.JTextField();
+        fdateh = new com.toedter.calendar.JDateChooser();
+        todateh = new com.toedter.calendar.JDateChooser();
+        jLabel10 = new javax.swing.JLabel();
+        jLabel11 = new javax.swing.JLabel();
+        refresh1 = new javax.swing.JButton();
+        jLabel12 = new javax.swing.JLabel();
+        trequestedh = new javax.swing.JTextField();
+        jLabel13 = new javax.swing.JLabel();
+        totalqtyrequestedh = new javax.swing.JTextField();
+        jLabel14 = new javax.swing.JLabel();
+        searchreqidh = new javax.swing.JTextField();
+        viewbtn = new javax.swing.JButton();
+        jLabel15 = new javax.swing.JLabel();
+        totalmedicinesh = new javax.swing.JTextField();
+        jButton4 = new javax.swing.JButton();
+        jLabel16 = new javax.swing.JLabel();
 
         jPanel1.setBackground(new java.awt.Color(48, 122, 55));
         jPanel1.setPreferredSize(new java.awt.Dimension(120, 510));
@@ -247,7 +303,7 @@ public class StockRequestPanel extends javax.swing.JPanel {
 
         jPanel2.setBackground(new java.awt.Color(255, 249, 103));
 
-        stockrequestedtable.setModel(new javax.swing.table.DefaultTableModel(
+        stockreqtable.setModel(new javax.swing.table.DefaultTableModel(
             new Object [][] {
                 {null, null, null, null, null, null, null, null},
                 {null, null, null, null, null, null, null, null},
@@ -258,7 +314,7 @@ public class StockRequestPanel extends javax.swing.JPanel {
                 "Requested ID", "Requested By", "Requested Date", "Quantity Medicines", "Quantity Requested", "Supplier Name", "Supplier Type", "Stock Status"
             }
         ));
-        jScrollPane1.setViewportView(stockrequestedtable);
+        jScrollPane1.setViewportView(stockreqtable);
 
         jLabel2.setFont(new java.awt.Font("Segoe UI", 1, 14)); // NOI18N
         jLabel2.setText("To Date");
@@ -286,7 +342,7 @@ public class StockRequestPanel extends javax.swing.JPanel {
         jLabel6.setText("Total Of Quantity Requested");
 
         jLabel7.setFont(new java.awt.Font("Segoe UI", 1, 12)); // NOI18N
-        jLabel7.setText("Enter a Requested ID");
+        jLabel7.setText("Enter a ID");
 
         view.setBackground(new java.awt.Color(0, 0, 0));
         view.setFont(new java.awt.Font("Segoe UI", 1, 12)); // NOI18N
@@ -387,18 +443,176 @@ public class StockRequestPanel extends javax.swing.JPanel {
 
         jTabbedPane2.addTab("Stock Requested", jPanel2);
 
+        jPanel4.setBackground(new java.awt.Color(255, 249, 103));
+
+        stockhistorytable.setModel(new javax.swing.table.DefaultTableModel(
+            new Object [][] {
+                {null, null, null, null, null, null, null, null},
+                {null, null, null, null, null, null, null, null},
+                {null, null, null, null, null, null, null, null},
+                {null, null, null, null, null, null, null, null}
+            },
+            new String [] {
+                "Requested ID", "Requested By", "Requested Date", "Quantity Medicines", "Quantity Requested", "Supplier Name", "Supplier Type", "Stock Status"
+            }
+        ));
+        jScrollPane2.setViewportView(stockhistorytable);
+
+        jLabel9.setFont(new java.awt.Font("Segoe UI", 1, 14)); // NOI18N
+        jLabel9.setText("To Date");
+
+        jLabel10.setFont(new java.awt.Font("Segoe UI", 1, 14)); // NOI18N
+        jLabel10.setText("Search");
+
+        jLabel11.setFont(new java.awt.Font("Segoe UI", 1, 14)); // NOI18N
+        jLabel11.setText("From Date");
+
+        refresh1.setBackground(new java.awt.Color(0, 0, 0));
+        refresh1.setFont(new java.awt.Font("Segoe UI", 1, 12)); // NOI18N
+        refresh1.setForeground(new java.awt.Color(255, 255, 255));
+        refresh1.setText("Refresh");
+        refresh1.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseClicked(java.awt.event.MouseEvent evt) {
+                refresh1MouseClicked(evt);
+            }
+        });
+
+        jLabel12.setFont(new java.awt.Font("Segoe UI", 1, 12)); // NOI18N
+        jLabel12.setText("Total Of Request");
+
+        jLabel13.setFont(new java.awt.Font("Segoe UI", 1, 12)); // NOI18N
+        jLabel13.setText("Total Of Quantity Requested");
+
+        jLabel14.setFont(new java.awt.Font("Segoe UI", 1, 12)); // NOI18N
+        jLabel14.setText("Enter a ID");
+
+        viewbtn.setBackground(new java.awt.Color(0, 0, 0));
+        viewbtn.setFont(new java.awt.Font("Segoe UI", 1, 12)); // NOI18N
+        viewbtn.setForeground(new java.awt.Color(255, 255, 255));
+        viewbtn.setText("View");
+        viewbtn.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseClicked(java.awt.event.MouseEvent evt) {
+                viewbtnMouseClicked(evt);
+            }
+        });
+
+        jLabel15.setFont(new java.awt.Font("Segoe UI", 1, 12)); // NOI18N
+        jLabel15.setText("Total Of Medicines");
+
+        jButton4.setBackground(new java.awt.Color(0, 0, 0));
+        jButton4.setFont(new java.awt.Font("Segoe UI", 1, 12)); // NOI18N
+        jButton4.setForeground(new java.awt.Color(255, 255, 255));
+        jButton4.setText("Print");
+
+        javax.swing.GroupLayout jPanel4Layout = new javax.swing.GroupLayout(jPanel4);
+        jPanel4.setLayout(jPanel4Layout);
+        jPanel4Layout.setHorizontalGroup(
+            jPanel4Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGroup(jPanel4Layout.createSequentialGroup()
+                .addGap(15, 15, 15)
+                .addGroup(jPanel4Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addGroup(jPanel4Layout.createSequentialGroup()
+                        .addComponent(jLabel10)
+                        .addGap(2, 2, 2)
+                        .addComponent(searchfieldh, javax.swing.GroupLayout.PREFERRED_SIZE, 187, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(refresh1)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                        .addComponent(jLabel11)
+                        .addGap(2, 2, 2)
+                        .addComponent(fdateh, javax.swing.GroupLayout.PREFERRED_SIZE, 167, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(jLabel9, javax.swing.GroupLayout.PREFERRED_SIZE, 54, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addGap(2, 2, 2)
+                        .addComponent(todateh, javax.swing.GroupLayout.PREFERRED_SIZE, 167, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(jButton4, javax.swing.GroupLayout.PREFERRED_SIZE, 68, javax.swing.GroupLayout.PREFERRED_SIZE))
+                    .addGroup(jPanel4Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
+                        .addGroup(jPanel4Layout.createSequentialGroup()
+                            .addComponent(jLabel12)
+                            .addGap(2, 2, 2)
+                            .addComponent(trequestedh, javax.swing.GroupLayout.PREFERRED_SIZE, 102, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addGap(2, 2, 2)
+                            .addComponent(jLabel13)
+                            .addGap(2, 2, 2)
+                            .addComponent(totalqtyrequestedh, javax.swing.GroupLayout.PREFERRED_SIZE, 104, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addGap(2, 2, 2)
+                            .addComponent(jLabel15)
+                            .addGap(2, 2, 2)
+                            .addComponent(totalmedicinesh, javax.swing.GroupLayout.PREFERRED_SIZE, 99, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                            .addComponent(jLabel14)
+                            .addGap(2, 2, 2)
+                            .addComponent(searchreqidh, javax.swing.GroupLayout.PREFERRED_SIZE, 123, javax.swing.GroupLayout.PREFERRED_SIZE))
+                        .addComponent(jScrollPane2, javax.swing.GroupLayout.PREFERRED_SIZE, 1119, javax.swing.GroupLayout.PREFERRED_SIZE)))
+                .addContainerGap(18, Short.MAX_VALUE))
+            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel4Layout.createSequentialGroup()
+                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                .addComponent(viewbtn)
+                .addGap(40, 40, 40))
+        );
+        jPanel4Layout.setVerticalGroup(
+            jPanel4Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel4Layout.createSequentialGroup()
+                .addContainerGap(34, Short.MAX_VALUE)
+                .addGroup(jPanel4Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
+                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel4Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                        .addComponent(jLabel11)
+                        .addGroup(jPanel4Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                            .addComponent(searchfieldh, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addComponent(jLabel10)
+                            .addComponent(refresh1)))
+                    .addComponent(fdateh, javax.swing.GroupLayout.Alignment.TRAILING, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel4Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                        .addComponent(todateh, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addComponent(jLabel9)
+                        .addComponent(jButton4)))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(jScrollPane2, javax.swing.GroupLayout.PREFERRED_SIZE, 360, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addGroup(jPanel4Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                    .addComponent(jLabel12)
+                    .addComponent(trequestedh, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(jLabel13)
+                    .addComponent(totalqtyrequestedh, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(jLabel14)
+                    .addComponent(searchreqidh, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(jLabel15)
+                    .addComponent(totalmedicinesh, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+                .addGap(2, 2, 2)
+                .addComponent(viewbtn)
+                .addContainerGap())
+        );
+
         javax.swing.GroupLayout jPanel3Layout = new javax.swing.GroupLayout(jPanel3);
         jPanel3.setLayout(jPanel3Layout);
         jPanel3Layout.setHorizontalGroup(
             jPanel3Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGap(0, 1152, Short.MAX_VALUE)
+            .addGroup(jPanel3Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                .addGroup(jPanel3Layout.createSequentialGroup()
+                    .addGap(0, 0, Short.MAX_VALUE)
+                    .addComponent(jPanel4, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addGap(0, 0, Short.MAX_VALUE)))
         );
         jPanel3Layout.setVerticalGroup(
             jPanel3Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGap(0, 482, Short.MAX_VALUE)
+            .addGroup(jPanel3Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                .addGroup(jPanel3Layout.createSequentialGroup()
+                    .addGap(0, 0, Short.MAX_VALUE)
+                    .addComponent(jPanel4, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addGap(0, 0, Short.MAX_VALUE)))
         );
 
-        jTabbedPane2.addTab("Stock History ", jPanel3);
+        jTabbedPane2.addTab("Stock Added History", jPanel3);
+
+        jLabel16.setIcon(new javax.swing.ImageIcon(getClass().getResource("/nch/left.png"))); // NOI18N
+        jLabel16.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseClicked(java.awt.event.MouseEvent evt) {
+                jLabel16MouseClicked(evt);
+            }
+        });
 
         javax.swing.GroupLayout jPanel1Layout = new javax.swing.GroupLayout(jPanel1);
         jPanel1.setLayout(jPanel1Layout);
@@ -407,7 +621,9 @@ public class StockRequestPanel extends javax.swing.JPanel {
             .addGroup(jPanel1Layout.createSequentialGroup()
                 .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addGroup(jPanel1Layout.createSequentialGroup()
-                        .addGap(474, 474, 474)
+                        .addContainerGap()
+                        .addComponent(jLabel16)
+                        .addGap(436, 436, 436)
                         .addComponent(jLabel1, javax.swing.GroupLayout.PREFERRED_SIZE, 211, javax.swing.GroupLayout.PREFERRED_SIZE))
                     .addGroup(jPanel1Layout.createSequentialGroup()
                         .addGap(29, 29, 29)
@@ -418,7 +634,9 @@ public class StockRequestPanel extends javax.swing.JPanel {
             jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(jPanel1Layout.createSequentialGroup()
                 .addGap(17, 17, 17)
-                .addComponent(jLabel1, javax.swing.GroupLayout.PREFERRED_SIZE, 45, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addComponent(jLabel1, javax.swing.GroupLayout.PREFERRED_SIZE, 45, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(jLabel16))
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addComponent(jTabbedPane2, javax.swing.GroupLayout.PREFERRED_SIZE, 517, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addContainerGap(33, Short.MAX_VALUE))
@@ -436,42 +654,85 @@ public class StockRequestPanel extends javax.swing.JPanel {
         );
     }// </editor-fold>//GEN-END:initComponents
 
-    private void refreshMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_refreshMouseClicked
-    // clear filters
-    fromdate.setDate(null);
-    todate.setDate(null);
-    searchfield.setText("");
-    // clear total labels/textfields
-    trequested.setText("0");
-    totalqtyrequested.setText("0");
-    totalmedicines.setText("0");
-    // reload full table data
-    loadStockRequestedTable();
-    }//GEN-LAST:event_refreshMouseClicked
+    private void refresh1MouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_refresh1MouseClicked
+        // TODO add your handling code here:
+    }//GEN-LAST:event_refresh1MouseClicked
+
+    private void viewbtnMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_viewbtnMouseClicked
+        String requestId = searchreqidh.getText().trim(); // Get request ID from input field
+
+        if (requestId.isEmpty()) {
+            JOptionPane.showMessageDialog(null, "Please enter a valid Request ID.");
+            return;
+        }
+
+        // Create and show the approval panel
+        StockAddedPrint panel = new StockAddedPrint(requestId);
+        JFrame frame = new JFrame("Approved Stocks for " + requestId);
+        frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        frame.getContentPane().add(panel);
+        frame.pack();
+        frame.setLocationRelativeTo(null);
+        frame.setVisible(true);
+    }//GEN-LAST:event_viewbtnMouseClicked
 
     private void viewMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_viewMouseClicked
-    String requestId = searchreqid.getText().trim(); // Get request ID from input field
+        String requestId = searchreqid.getText().trim(); // Get request ID from input field
 
-    if (requestId.isEmpty()) {
-        JOptionPane.showMessageDialog(null, "Please enter a valid Request ID.");
-        return;
-    }
+        if (requestId.isEmpty()) {
+            JOptionPane.showMessageDialog(null, "Please enter a valid Request ID.");
+            return;
+        }
 
-    // Create and show the approval panel
-    ApprovalStocksPanel panel = new ApprovalStocksPanel(requestId);
-    JFrame frame = new JFrame("Approved Stocks for " + requestId);
-    frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-    frame.getContentPane().add(panel);
-    frame.pack();
-    frame.setLocationRelativeTo(null);
-    frame.setVisible(true);
+        // Create and show the approval panel
+        ApprovalStocksPanel panel = new ApprovalStocksPanel(requestId);
+        JFrame frame = new JFrame("Approved Stocks for " + requestId);
+        frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        frame.getContentPane().add(panel);
+        frame.pack();
+        frame.setLocationRelativeTo(null);
+        frame.setVisible(true);
     }//GEN-LAST:event_viewMouseClicked
+
+    private void refreshMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_refreshMouseClicked
+        // clear filters
+        fromdate.setDate(null);
+        todate.setDate(null);
+        searchfield.setText("");
+        // clear total labels/textfields
+        trequested.setText("0");
+        totalqtyrequested.setText("0");
+        totalmedicines.setText("0");
+        // reload full table data
+        loadStockRequestedTable();
+    }//GEN-LAST:event_refreshMouseClicked
+
+    private void jLabel16MouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_jLabel16MouseClicked
+        // Get the parent window (JFrame) of this panel
+        Window window = SwingUtilities.getWindowAncestor(this);
+        if (window != null) {
+            window.dispose(); // Close the window
+        }
+
+        // Open the homepage window
+        homepageSYSTEM homepage = new homepageSYSTEM();
+        homepage.setVisible(true);
+    }//GEN-LAST:event_jLabel16MouseClicked
 
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
+    private com.toedter.calendar.JDateChooser fdateh;
     private com.toedter.calendar.JDateChooser fromdate;
     private javax.swing.JButton jButton3;
+    private javax.swing.JButton jButton4;
     private javax.swing.JLabel jLabel1;
+    private javax.swing.JLabel jLabel10;
+    private javax.swing.JLabel jLabel11;
+    private javax.swing.JLabel jLabel12;
+    private javax.swing.JLabel jLabel13;
+    private javax.swing.JLabel jLabel14;
+    private javax.swing.JLabel jLabel15;
+    private javax.swing.JLabel jLabel16;
     private javax.swing.JLabel jLabel2;
     private javax.swing.JLabel jLabel3;
     private javax.swing.JLabel jLabel4;
@@ -479,19 +740,31 @@ public class StockRequestPanel extends javax.swing.JPanel {
     private javax.swing.JLabel jLabel6;
     private javax.swing.JLabel jLabel7;
     private javax.swing.JLabel jLabel8;
+    private javax.swing.JLabel jLabel9;
     private javax.swing.JPanel jPanel1;
     private javax.swing.JPanel jPanel2;
     private javax.swing.JPanel jPanel3;
+    private javax.swing.JPanel jPanel4;
     private javax.swing.JScrollPane jScrollPane1;
+    private javax.swing.JScrollPane jScrollPane2;
     private javax.swing.JTabbedPane jTabbedPane2;
     private javax.swing.JButton refresh;
+    private javax.swing.JButton refresh1;
     private javax.swing.JTextField searchfield;
+    private javax.swing.JTextField searchfieldh;
     private javax.swing.JTextField searchreqid;
-    private javax.swing.JTable stockrequestedtable;
+    private javax.swing.JTextField searchreqidh;
+    private javax.swing.JTable stockhistorytable;
+    private javax.swing.JTable stockreqtable;
     private com.toedter.calendar.JDateChooser todate;
+    private com.toedter.calendar.JDateChooser todateh;
     private javax.swing.JTextField totalmedicines;
+    private javax.swing.JTextField totalmedicinesh;
     private javax.swing.JTextField totalqtyrequested;
+    private javax.swing.JTextField totalqtyrequestedh;
     private javax.swing.JTextField trequested;
+    private javax.swing.JTextField trequestedh;
     private javax.swing.JButton view;
+    private javax.swing.JButton viewbtn;
     // End of variables declaration//GEN-END:variables
 }

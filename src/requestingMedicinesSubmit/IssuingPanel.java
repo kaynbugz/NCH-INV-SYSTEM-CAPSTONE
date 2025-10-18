@@ -100,139 +100,131 @@ public class IssuingPanel extends javax.swing.JPanel {
     }
 
     public void setRequestData(String requestId) {
-        req_date.setEditable(false);
-        req_name.setEditable(false);
-        req_department.setEditable(false);
-        approvedby.setEditable(false);
-        approvaldate.setEditable(false);
+    req_date.setEditable(false);
+    req_name.setEditable(false);
+    req_department.setEditable(false);
+    approvedby.setEditable(false);
+    approvaldate.setEditable(false);
 
-        req_date.setBackground(Color.WHITE);
-        req_name.setBackground(Color.WHITE);
-        req_department.setBackground(Color.WHITE);
-        approvedby.setBackground(Color.WHITE);
-        approvaldate.setBackground(Color.WHITE);
+    req_date.setBackground(Color.WHITE);
+    req_name.setBackground(Color.WHITE);
+    req_department.setBackground(Color.WHITE);
+    approvedby.setBackground(Color.WHITE);
+    approvaldate.setBackground(Color.WHITE);
 
-        if (requestId == null) {
-            req_id.setText("");
-            req_date.setText(new SimpleDateFormat("MM-dd-yyyy").format(new java.util.Date()));
-            req_name.setText("");
-            req_department.setText("");
-            approvedby.setText("");
-            approvaldate.setText("");
-            ((DefaultTableModel) table_issuing_approval.getModel()).setRowCount(0);
-            confirmbtn.setEnabled(false);
-            rejectedbtn.setEnabled(false);
-            return;
+    if (requestId == null) {
+        req_id.setText("");
+        req_date.setText(new SimpleDateFormat("MM-dd-yyyy").format(new java.util.Date()));
+        req_name.setText("");
+        req_department.setText("");
+        approvedby.setText("");
+        approvaldate.setText("");
+        ((DefaultTableModel) table_issuing_approval.getModel()).setRowCount(0);
+        confirmbtn.setEnabled(false);
+        rejectedbtn.setEnabled(false);
+        return;
+    }
+
+    req_id.setText(requestId);
+
+    try (Connection conn = DriverManager.getConnection(
+            "jdbc:sqlserver://localhost:1433;databaseName=nchdbase;encrypt=true;trustServerCertificate=true",
+            "admin", "yeyel2025")) {
+
+        // Load request header info
+        String query = """
+            SELECT r.request_date, r.department, r.requested_by,
+                   ar.approved_by, ar.approval_date
+            FROM requests r
+            LEFT JOIN approved_medicines_request ar
+                   ON r.request_id = ar.request_id
+            WHERE r.request_id = ?
+        """;
+
+        try (PreparedStatement ps = conn.prepareStatement(query)) {
+            ps.setString(1, requestId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    req_date.setText(rs.getString("request_date"));
+                    req_department.setText(rs.getString("department"));
+                    req_name.setText(rs.getString("requested_by"));
+
+                    String approvedBy = rs.getString("approved_by");
+                    Date approvalDateVal = rs.getDate("approval_date");
+                    approvedby.setText(approvedBy != null ? approvedBy : "N/A");
+                    approvaldate.setText(approvalDateVal != null
+                            ? new SimpleDateFormat("MM-dd-yyyy").format(approvalDateVal)
+                            : "N/A");
+                }
+            }
         }
 
-        req_id.setText(requestId);
+        // Load requested + issued items
+        String itemQuery = """
+            SELECT 
+                ri.GenericID,
+                m.GenericName,
+                m.Units,
+                m.Description,
+                ri.quantity_requested,
+                ISNULL(iim.quantity_issued, 0) AS quantity_issued,
+                m.MfgDate,
+                m.ExpDate,
+                m.BatchNo,
+                ISNULL(iim.remarks, '') AS remarks,
+                ri.issuing_status
+            FROM requested_items_medicines ri
+            JOIN medicines m ON ri.GenericID = m.GenericID
+            LEFT JOIN issued_items_medicines iim
+                ON ri.request_id = iim.request_id AND ri.GenericID = iim.medicine_id
+            WHERE ri.request_id = ?
+        """;
 
-        try (Connection conn = DriverManager.getConnection(
-                "jdbc:sqlserver://localhost:1433;databaseName=nchdbase;encrypt=true;trustServerCertificate=true",
-                "admin", "yeyel2025")) {
+        DefaultTableModel model = new DefaultTableModel(
+                new Object[]{
+                    "GenericID", "GenericName", "Units", "Description",
+                    "Qty Requested", "Qty Issued", "MfgDate", "ExpDate",
+                    "BatchNo", "Remarks", "Issuing Status"
+                }, 0
+        ) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                Object statusObj = getValueAt(row, 10);
+                String status = (statusObj != null) ? statusObj.toString().trim() : "";
+                if ("Issued".equalsIgnoreCase(status)) return false;
+                return (column == 5 || column == 9);
+            }
+        };
 
-            // ==========================
-            // Load request header info
-            // ==========================
-            String query = """
-                SELECT r.request_date, r.department, r.requested_by,
-                       ar.approved_by, ar.approval_date
-                FROM requests r
-                LEFT JOIN approved_medicines_request ar
-                       ON r.request_id = ar.request_id
-                WHERE r.request_id = ?
-            """;
+        boolean hasPendingIssuance = false;
 
-            try (PreparedStatement ps = conn.prepareStatement(query)) {
-                ps.setString(1, requestId);
-                try (ResultSet rs = ps.executeQuery()) {
-                    if (rs.next()) {
-                        req_date.setText(rs.getString("request_date"));
-                        req_department.setText(rs.getString("department"));
-                        req_name.setText(rs.getString("requested_by"));
-
-                        String approvedBy = rs.getString("approved_by");
-                        Date approvalDateVal = rs.getDate("approval_date");
-                        approvedby.setText(approvedBy != null ? approvedBy : "N/A");
-                        approvaldate.setText(approvalDateVal != null
-                                ? new SimpleDateFormat("MM-dd-yyyy").format(approvalDateVal)
-                                : "N/A");
+        try (PreparedStatement psItems = conn.prepareStatement(itemQuery)) {
+            psItems.setString(1, requestId);
+            try (ResultSet rsItems = psItems.executeQuery()) {
+                while (rsItems.next()) {
+                    String issuingStatus = rsItems.getString("issuing_status");
+                    if ("Pending Issued".equalsIgnoreCase(issuingStatus)) {
+                        hasPendingIssuance = true;
                     }
+
+                    model.addRow(new Object[]{
+                        rsItems.getString("GenericID"),
+                        rsItems.getString("GenericName"),
+                        rsItems.getString("Units"),
+                        rsItems.getString("Description"),
+                        rsItems.getInt("quantity_requested"),
+                        rsItems.getInt("quantity_issued"),
+                        rsItems.getDate("MfgDate"),
+                        rsItems.getDate("ExpDate"),
+                        rsItems.getString("BatchNo"),
+                        rsItems.getString("remarks"),
+                        issuingStatus != null ? issuingStatus : "Pending Issued"
+                    });
                 }
             }
+        }
 
-            // ==========================
-            // Load requested + issued items
-            // ==========================
-            String itemQuery = """
-                SELECT 
-                    ri.GenericID,
-                    m.GenericName,
-                    m.Units,
-                    m.Description,
-                    ri.quantity_requested,
-                    ISNULL(iim.quantity_issued, 0) AS quantity_issued,
-                    m.MfgDate,
-                    m.ExpDate,
-                    m.BatchNo,
-                    ISNULL(iim.remarks, '') AS remarks,
-                    ri.issuing_status
-                FROM requested_items_medicines ri
-                JOIN medicines m ON ri.GenericID = m.GenericID
-                LEFT JOIN issued_items_medicines iim
-                    ON ri.request_id = iim.request_id AND ri.GenericID = iim.medicine_id
-                WHERE ri.request_id = ?
-            """;
-
-            DefaultTableModel model = new DefaultTableModel(
-                    new Object[]{
-                        "GenericID", "GenericName", "Units", "Description",
-                        "Qty Requested", "Qty Issued", "MfgDate", "ExpDate",
-                        "BatchNo", "Remarks", "Issuing Status"
-                    }, 0
-            ) {
-                @Override
-                public boolean isCellEditable(int row, int column) {
-                    Object statusObj = getValueAt(row, 10);
-                    String status = (statusObj != null) ? statusObj.toString().trim() : "";
-
-                    // lock row if already issued
-                    if ("Issued".equalsIgnoreCase(status)) return false;
-
-                    // allow editing for Qty Issued and Remarks only
-                    return (column == 5 || column == 9);
-                }
-            };
-
-            boolean hasPendingIssuance = false;
-
-            try (PreparedStatement psItems = conn.prepareStatement(itemQuery)) {
-                psItems.setString(1, requestId);
-                try (ResultSet rsItems = psItems.executeQuery()) {
-                    while (rsItems.next()) {
-                        String issuingStatus = rsItems.getString("issuing_status");
-                        if ("Pending Issued".equalsIgnoreCase(issuingStatus)) {
-                            hasPendingIssuance = true;
-                        }
-
-                        model.addRow(new Object[]{
-                            rsItems.getInt("GenericID"),
-                            rsItems.getString("GenericName"),
-                            rsItems.getString("Units"),
-                            rsItems.getString("Description"),
-                            rsItems.getInt("quantity_requested"),
-                            rsItems.getInt("quantity_issued"),
-                            rsItems.getDate("MfgDate"),
-                            rsItems.getDate("ExpDate"),
-                            rsItems.getString("BatchNo"),
-                            rsItems.getString("remarks"),
-                            issuingStatus != null ? issuingStatus : "Pending Issued"
-                        });
-                    }
-                }
-            }
-
-            table_issuing_approval.setModel(model);
+        table_issuing_approval.setModel(model);
 
             // hide Issuing Status column
             TableColumn hiddenCol = table_issuing_approval.getColumnModel().getColumn(10);
@@ -331,7 +323,7 @@ public class IssuingPanel extends javax.swing.JPanel {
 
             confirmbtn.setEnabled(hasPendingIssuance);
             rejectedbtn.setEnabled(hasPendingIssuance);
-
+    
         } catch (SQLException ex) {
             ex.printStackTrace();
             JOptionPane.showMessageDialog(null, "Failed to load request info.");
@@ -618,7 +610,6 @@ public class QuantityCellRenderer extends DefaultTableCellRenderer {
     }// </editor-fold>//GEN-END:initComponents
 
     private void confirmbtnMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_confirmbtnMouseClicked
-                                           
     int rowCount = table_issuing_approval.getRowCount();
     if (rowCount == 0) {
         JOptionPane.showMessageDialog(null, "No items to confirm.");
@@ -635,7 +626,6 @@ public class QuantityCellRenderer extends DefaultTableCellRenderer {
 
         conn.setAutoCommit(false);
 
-        // SQL queries
         String getItemIdSQL = "SELECT items_requested_id FROM requested_items_medicines WHERE request_id = ? AND GenericID = ?";
         String checkExistingSQL = "SELECT issue_id, quantity_issued FROM issued_items_medicines WHERE request_id = ? AND medicine_id = ?";
         String insertSQL = """
@@ -662,7 +652,6 @@ public class QuantityCellRenderer extends DefaultTableCellRenderer {
             java.sql.Date currentDate = new java.sql.Date(System.currentTimeMillis());
             java.sql.Time currentTime = new java.sql.Time(System.currentTimeMillis());
 
-            // Find Remarks column index
             int remarksColumnIndex = -1;
             for (int c = 0; c < table_issuing_approval.getColumnCount(); c++) {
                 String colName = table_issuing_approval.getColumnName(c).trim().toLowerCase();
@@ -680,23 +669,20 @@ public class QuantityCellRenderer extends DefaultTableCellRenderer {
 
                 if (genIdObj == null) continue;
 
-                int medId = Integer.parseInt(genIdObj.toString());
+                String medId = genIdObj.toString().trim();
                 int qtyRequested = qtyReqObj != null ? Integer.parseInt(qtyReqObj.toString()) : 0;
                 int qtyFromTable = qtyIssuedObj != null ? Integer.parseInt(qtyIssuedObj.toString()) : 0;
                 String remarks = (remarksObj != null && !remarksObj.toString().isBlank()) ? remarksObj.toString().trim() : "";
 
-                if (qtyFromTable <= 0) continue; // skip if nothing to issue
+                if (qtyFromTable <= 0) continue;
 
-                // ensure totalIssued does not exceed requested
                 int totalIssued = Math.min(qtyRequested, qtyFromTable);
-
                 String itemStatus = (totalIssued >= qtyRequested) ? "Issued" :
                                     (totalIssued > 0 ? "Partially Issued" : "Pending Issued");
 
-                // get items_requested_id
                 int itemsRequestedId = -1;
                 psGetItemId.setString(1, requestId);
-                psGetItemId.setInt(2, medId);
+                psGetItemId.setString(2, medId);
                 try (ResultSet rs = psGetItemId.executeQuery()) {
                     if (rs.next()) {
                         itemsRequestedId = rs.getInt("items_requested_id");
@@ -706,10 +692,9 @@ public class QuantityCellRenderer extends DefaultTableCellRenderer {
                     }
                 }
 
-                // check if already exists in issued_items_medicines
                 int issueId = -1;
                 psCheck.setString(1, requestId);
-                psCheck.setInt(2, medId);
+                psCheck.setString(2, medId);
                 try (ResultSet rs = psCheck.executeQuery()) {
                     if (rs.next()) {
                         issueId = rs.getInt("issue_id");
@@ -717,7 +702,6 @@ public class QuantityCellRenderer extends DefaultTableCellRenderer {
                 }
 
                 if (issueId > 0) {
-                    // update existing issued item
                     psUpdateIssued.setInt(1, totalIssued);
                     psUpdateIssued.setString(2, remarks);
                     psUpdateIssued.setDate(3, currentDate);
@@ -725,13 +709,12 @@ public class QuantityCellRenderer extends DefaultTableCellRenderer {
                     psUpdateIssued.setString(5, issuedBy);
                     psUpdateIssued.setString(6, itemStatus);
                     psUpdateIssued.setString(7, requestId);
-                    psUpdateIssued.setInt(8, medId);
+                    psUpdateIssued.setString(8, medId);
                     psUpdateIssued.addBatch();
                 } else {
-                    // insert new issued item
                     psInsert.setInt(1, itemsRequestedId);
                     psInsert.setString(2, requestId);
-                    psInsert.setInt(3, medId);
+                    psInsert.setString(3, medId);
                     psInsert.setString(4, issuedBy);
                     psInsert.setDate(5, currentDate);
                     psInsert.setTime(6, currentTime);
@@ -743,15 +726,13 @@ public class QuantityCellRenderer extends DefaultTableCellRenderer {
                     psInsert.addBatch();
                 }
 
-                // update requested_items_medicines issuing status
                 psUpdateReq.setString(1, itemStatus);
                 psUpdateReq.setString(2, requestId);
-                psUpdateReq.setInt(3, medId);
+                psUpdateReq.setString(3, medId);
                 psUpdateReq.addBatch();
 
-                // update medicines stock
                 psUpdateStock.setInt(1, totalIssued);
-                psUpdateStock.setInt(2, medId);
+                psUpdateStock.setString(2, medId);
                 psUpdateStock.addBatch();
             }
 
@@ -760,7 +741,6 @@ public class QuantityCellRenderer extends DefaultTableCellRenderer {
             psUpdateReq.executeBatch();
             psUpdateStock.executeBatch();
 
-            // update header status
             updateIssuingHeaderStatus(conn, requestId);
 
             conn.commit();
@@ -777,7 +757,7 @@ public class QuantityCellRenderer extends DefaultTableCellRenderer {
     } catch (SQLException ex) {
         ex.printStackTrace();
         JOptionPane.showMessageDialog(null, "Database connection error.\n" + ex.getMessage());
-    }
+    }  
     }//GEN-LAST:event_confirmbtnMouseClicked
 
  private void updateIssuingHeaderStatus(Connection conn, String requestId) throws SQLException {

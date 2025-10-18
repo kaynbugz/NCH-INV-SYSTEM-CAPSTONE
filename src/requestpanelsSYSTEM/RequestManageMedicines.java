@@ -2,18 +2,18 @@
 package requestpanelsSYSTEM;
 
     import com.toedter.calendar.JDateChooser;
-import medicinespanelsSYSTEM.IssuedMedicines;
-import medicinespanelsSYSTEM.IssuedMedicines;
-import requestingMedicinesSubmit.RequestedMedicinesSubmit;
-import requestingMedicinesSubmit.RequestedMedicinesSubmit;
-import requestingMedicinesSubmit.UpdatingAllStatusMedicines;
-import requestingMedicinesSubmit.UpdatingAllStatusMedicines;
-import dashboardSYSTEM.homepageSYSTEM;
+    import medicinespanelsSYSTEM.IssuedMedicines;
+    import medicinespanelsSYSTEM.IssuedMedicines;
+    import requestingMedicinesSubmit.RequestedMedicinesSubmit;
+    import requestingMedicinesSubmit.RequestedMedicinesSubmit;
+    import requestingMedicinesSubmit.UpdatingAllStatusMedicines;
+    import requestingMedicinesSubmit.UpdatingAllStatusMedicines;
+    import dashboardSYSTEM.homepageSYSTEM;
     import static groovy.ui.text.FindReplaceUtility.dispose;
     import java.awt.BorderLayout;
-import java.awt.Color;
+    import java.awt.Color;
     import java.awt.Component;
-import java.awt.Font;
+    import java.awt.Font;
     import java.awt.Frame;
     import java.awt.Window;
     import java.awt.event.ActionEvent;
@@ -176,7 +176,7 @@ public class RequestManageMedicines extends javax.swing.JPanel {
         });
     }
 
-     public void loadApprovedMedicinesData() {
+    public void loadApprovedMedicinesData() {
     DefaultTableModel model = new DefaultTableModel(
         new Object[]{"Request ID", "Approval Date", "Approved By", "Total Medicines", "Total Medicines Issued", "Issuing Status"}, 0
     ) {
@@ -204,7 +204,6 @@ public class RequestManageMedicines extends javax.swing.JPanel {
         ORDER BY amr.request_id
     """;
 
-    // count of medicines that are Issued or Partially Issued
     String issuedCountQuery = """
         SELECT COUNT(*) AS issued_count
         FROM requested_items_medicines
@@ -225,16 +224,18 @@ public class RequestManageMedicines extends javax.swing.JPanel {
          ResultSet rs = ps.executeQuery()) {
 
         while (rs.next()) {
-            int requestId = rs.getInt("request_id");
+            String requestId = rs.getString("request_id");
+            if (requestId == null) continue;
+            requestId = requestId.toUpperCase(); // ✅ Force uppercase
+
             Date approvalDate = rs.getDate("approval_date");
             String approvedBy = rs.getString("approved_by");
             int totalItems = rs.getInt("total_items");
             totalItemsAll += totalItems;
 
-            // get count of medicines actually issued or partially issued
             int totalIssued = 0;
             try (PreparedStatement psIssued = conn.prepareStatement(issuedCountQuery)) {
-                psIssued.setInt(1, requestId);
+                psIssued.setString(1, requestId);
                 try (ResultSet rsIssued = psIssued.executeQuery()) {
                     if (rsIssued.next()) {
                         totalIssued = rsIssued.getInt("issued_count");
@@ -243,12 +244,11 @@ public class RequestManageMedicines extends javax.swing.JPanel {
             }
             totalIssuedAll += totalIssued;
 
-            // determine issuing status
             boolean hasPending = false;
             boolean hasIssued = false;
             boolean hasPartial = false;
             try (PreparedStatement psStatus = conn.prepareStatement(statusQuery)) {
-                psStatus.setInt(1, requestId);
+                psStatus.setString(1, requestId);
                 try (ResultSet rsStatus = psStatus.executeQuery()) {
                     while (rsStatus.next()) {
                         String status = rsStatus.getString("issuing_status");
@@ -269,26 +269,28 @@ public class RequestManageMedicines extends javax.swing.JPanel {
             else if (hasPending && !hasIssued && !hasPartial) issuingStatus = "Pending Issued";
             else issuingStatus = "Pending Issued";
 
+            // Format date for display
+            String formattedDate = (approvalDate != null)
+                ? new SimpleDateFormat("yyyy-MM-dd").format(approvalDate)
+                : "";
+
             model.addRow(new Object[]{
                 requestId,
-                approvalDate,
-                approvedBy,
+                formattedDate,
+                approvedBy != null ? approvedBy : "",
                 totalItems,
                 totalIssued,
                 issuingStatus
             });
         }
 
-        // update top JLabels and center them
-        qtymedicines.setText("" + totalItemsAll);
-        totalmedissued.setText("" + totalIssuedAll);
+        qtymedicines.setText(String.valueOf(totalItemsAll));
+        totalmedissued.setText(String.valueOf(totalIssuedAll));
 
-        // table header styling
         JTableHeader header = approved_meds.getTableHeader();
         header.setBackground(Color.BLACK);
         header.setForeground(Color.WHITE);
 
-        // center all JTable cells
         DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
         centerRenderer.setHorizontalAlignment(JLabel.CENTER);
         for (int i = 0; i < approved_meds.getColumnCount(); i++) {
@@ -298,10 +300,8 @@ public class RequestManageMedicines extends javax.swing.JPanel {
     } catch (SQLException ex) {
         ex.printStackTrace();
         JOptionPane.showMessageDialog(null, "Failed to load approved medicines data.");
-    }	
     }
-
-
+   }
 public void loadRequestedItemsData() {
     DefaultTableModel model = new DefaultTableModel() {
         @Override
@@ -335,19 +335,15 @@ public void loadRequestedItemsData() {
                      AND COUNT(CASE WHEN ri.approval_status = 'Rejected' THEN 1 END) = 0
                      AND COUNT(CASE WHEN ri.approval_status = 'Approved' THEN 1 END) > 0
                      THEN 'Approved'
-
                 WHEN COUNT(CASE WHEN ri.approval_status = 'Approved' THEN 1 END) > 0
                      AND COUNT(CASE WHEN ri.approval_status = 'Requested' THEN 1 END) > 0
                      THEN 'Partially Approved'
-
                 WHEN COUNT(CASE WHEN ri.approval_status = 'Rejected' THEN 1 END) > 0
                      AND COUNT(CASE WHEN ri.approval_status = 'Requested' THEN 1 END) > 0
                      THEN 'Partially Processed'
-
                 WHEN COUNT(CASE WHEN ri.approval_status = 'Rejected' THEN 1 END) > 0
                      AND COUNT(CASE WHEN ri.approval_status = 'Approved' THEN 1 END) = 0
                      THEN 'Rejected'
-
                 ELSE 'Requested'
             END AS approval_status_summary
         FROM requests r
@@ -365,7 +361,7 @@ public void loadRequestedItemsData() {
          ResultSet rs = ps.executeQuery()) {
 
         while (rs.next()) {
-            int requestId = rs.getInt("request_id");
+            String requestId = rs.getString("request_id"); // ✅ FIXED
             int items = rs.getInt("total_items");
             int qty = rs.getInt("total_quantity_requested");
 
@@ -434,7 +430,6 @@ public void loadRequestedItemsData() {
     }
 }
 
-
 public void loadIssuedItems() {
     String dbURL = "jdbc:sqlserver://localhost:1433;databaseName=nchdbase;encrypt=true;trustServerCertificate=true";
     String dbUser = "admin";
@@ -465,7 +460,7 @@ public void loadIssuedItems() {
             "Issued By", "Issued Date", "Issued Time", "Issuing Status"
         });
 
-        SimpleDateFormat timeFormat = new SimpleDateFormat("h:mm a"); // 12-hour format
+        SimpleDateFormat timeFormat = new SimpleDateFormat("h:mm a");
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
 
         int totalRequests = 0;
@@ -481,11 +476,14 @@ public void loadIssuedItems() {
             java.sql.Date sqlDate = rs.getDate("issued_date");
             java.sql.Time sqlTime = rs.getTime("issued_time");
 
-            String formattedDate = sqlDate != null ? dateFormat.format(sqlDate) : "";
-            String formattedTime = sqlTime != null ? timeFormat.format(sqlTime) : "";
+            String formattedDate = (sqlDate != null) ? dateFormat.format(sqlDate) : "";
+            String formattedTime = (sqlTime != null) ? timeFormat.format(sqlTime) : "";
+
+            String requestId = rs.getString("request_id");
+            if (requestId != null) requestId = requestId.toUpperCase(); // ✅ Ensure uppercase
 
             model.addRow(new Object[]{
-                rs.getInt("request_id"),
+                requestId,
                 items,
                 qtyRequested,
                 qtyIssued,
@@ -502,6 +500,7 @@ public void loadIssuedItems() {
         }
 
         issued_items.setModel(model);
+        issued_items.repaint();
 
         // 🔹 Table styling
         JTableHeader header = issued_items.getTableHeader();
@@ -541,10 +540,9 @@ public void loadIssuedItems() {
         };
         issued_items.getColumnModel().getColumn(7).setCellRenderer(statusRenderer);
 
-        totalmeds.setText("" + totalItems);
-        totalqtyreq.setText("" + totalQtyRequested);
-        totalqtyissued.setText("" + totalQtyIssued);
-
+        totalmeds.setText(String.valueOf(totalItems));
+        totalqtyreq.setText(String.valueOf(totalQtyRequested));
+        totalqtyissued.setText(String.valueOf(totalQtyIssued));
 
     } catch (SQLException ex) {
         ex.printStackTrace();
@@ -1416,22 +1414,31 @@ public void filterRequests() {
     }//GEN-LAST:event_viewActionPerformed
 
     private void viewMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_viewMouseClicked
-      String searchReqId = reqidsearch.getText().trim();
+    String searchReqId = reqidsearch.getText().trim();
+
     if (searchReqId.isEmpty()) {
         JOptionPane.showMessageDialog(null, "Please enter a Request ID.");
         return;
     }
 
-    RequestedMedicinesSubmit updPanel = new RequestedMedicinesSubmit();
-    updPanel.setRequestData(searchReqId);
+    try {
+        // Create and configure the panel
+        RequestedMedicinesSubmit updPanel = new RequestedMedicinesSubmit();
+        updPanel.setRequestData(searchReqId); // ✅ Pass VARCHAR request_id
 
-    // Create JDialog
-    JDialog dialog = new JDialog((Frame) null, true); // modal
-    dialog.setUndecorated(true); // remove title bar and borders
-    dialog.setContentPane(updPanel);
-    dialog.pack(); // auto-size to panel
-    dialog.setLocationRelativeTo(null); // center on screen
-    dialog.setVisible(true); // show modal
+        // Create modal dialog
+        Window parentWindow = SwingUtilities.getWindowAncestor(this);
+        JDialog dialog = new JDialog(parentWindow instanceof Frame ? (Frame) parentWindow : null, "Requested Medicines", true);
+        dialog.setUndecorated(true); // Optional: remove window borders
+        dialog.setContentPane(updPanel);
+        dialog.pack(); // Auto-size to panel
+        dialog.setLocationRelativeTo(this); // Center relative to current component
+        dialog.setVisible(true); // Show modal
+
+    } catch (Exception e) {
+        e.printStackTrace();
+        JOptionPane.showMessageDialog(null, "Failed to load request details: " + e.getMessage());
+    }
     }//GEN-LAST:event_viewMouseClicked
 
     private void view2MouseEntered(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_view2MouseEntered

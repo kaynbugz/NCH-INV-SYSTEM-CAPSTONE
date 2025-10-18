@@ -44,6 +44,8 @@ import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.swing.AbstractCellEditor;
 import javax.swing.BorderFactory;
@@ -51,6 +53,7 @@ import javax.swing.DefaultCellEditor;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JDialog;
+import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
@@ -80,6 +83,9 @@ public class DonationPanelMedicines extends javax.swing.JPanel {
     this.itemsPanel = itemsPanel;
     initComponents();
     colorwhitebg();
+    loadCategoryTypes();
+    setupCategoryTypeListener();
+
 
     // Auto-fill logged-in user
     String loggedInUser = SessionManager.currentUserFullName;
@@ -154,8 +160,8 @@ public class DonationPanelMedicines extends javax.swing.JPanel {
     sts.setText("In Progress");
 
     // Styling
-    type.setBackground(Color.WHITE);
-    ctgry.setBackground(Color.WHITE);
+    catype.setBackground(Color.WHITE);
+    categories.setBackground(Color.WHITE);
     donorname.setBackground(Color.WHITE);
     donorname.setFont(new Font("Segoe UI", Font.PLAIN, 13));
     donorname.setText("");
@@ -224,30 +230,96 @@ public class DonationPanelMedicines extends javax.swing.JPanel {
     }           
 }
 
+     
+private void loadCategoryTypes() {
+    catype.removeAllItems();
+    catype.setBackground(Color.WHITE);
 
-   
+    String sql = "SELECT DISTINCT cat_type FROM categories ORDER BY cat_type";
+
+    try (Connection conn = DriverManager.getConnection(
+            "jdbc:sqlserver://localhost:1433;databaseName=nchdbase;encrypt=true;trustServerCertificate=true",
+            "admin", "yeyel2025");
+         PreparedStatement pst = conn.prepareStatement(sql);
+         ResultSet rs = pst.executeQuery()) {
+
+        while (rs.next()) {
+            String type = rs.getString("cat_type");
+            catype.addItem(type);
+        }
+
+        catype.setSelectedIndex(-1); // no selection by default
+
+    } catch (SQLException e) {
+        e.printStackTrace();
+        JOptionPane.showMessageDialog(null, "Error loading category types: " + e.getMessage());
+    }
+}
+
+
+private void setupCategoryTypeListener() {
+    catype.addActionListener(e -> {
+        String selectedType = (String) catype.getSelectedItem();
+        if (selectedType == null || selectedType.isBlank()) return;
+
+        categories.removeAllItems();
+        categories.setBackground(Color.WHITE);
+
+        String sql = "SELECT cat_name FROM categories WHERE cat_type = ? ORDER BY cat_name";
+
+        try (Connection conn = DriverManager.getConnection(
+                "jdbc:sqlserver://localhost:1433;databaseName=nchdbase;encrypt=true;trustServerCertificate=true",
+                "admin", "yeyel2025");
+             PreparedStatement pst = conn.prepareStatement(sql)) {
+
+            pst.setString(1, selectedType);
+            try (ResultSet rs = pst.executeQuery()) {
+                boolean hasResults = false;
+                while (rs.next()) {
+                    String catName = rs.getString("cat_name");
+                    categories.addItem(catName);
+                    hasResults = true;
+                }
+
+                if (!hasResults) {
+                    categories.addItem("No categories found");
+                } else {
+                    categories.setSelectedIndex(0); // auto-select first
+                }
+
+            }
+
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+            JOptionPane.showMessageDialog(null, "Error fetching category names: " + ex.getMessage());
+        }
+    });
+}
+
     private void setupDateTimeFields() {
         // Current date in yy/MM/dd format
         SimpleDateFormat dateFormat = new SimpleDateFormat("yy/MM/dd");
         String currentDate = dateFormat.format(new Date());
-        datedonated.setText(currentDate);
-        datedonated.setEditable(false); // optional: make read-only
+        dated.setText(currentDate);
+        dated.setEditable(false); // optional: make read-only
 
         // Current time in hh:mm a format (AM/PM)
         SimpleDateFormat timeFormat = new SimpleDateFormat("hh:mm a");
         String currentTime = timeFormat.format(new Date());
-        time.setText(currentTime);
-        time.setEditable(false); // optional: make read-only
+        timed.setText(currentTime);
+        timed.setEditable(false); // optional: make read-only
     }
       
       public void clearSupplierFields() {
 
-    // Clear text fields
-    type.setText("");
-    ctgry.setText("");
+ 
+    // Clear JComboBox selection
+    catype.setSelectedIndex(-1); // ✅ clears selection without removing items
+    // Clear JComboBox selection
+    categories.setSelectedIndex(-1); // ✅ clears selection without removing items
     sts.setText("");
-    datedonated.setText("");   // since date is JTextField
-    time.setText("");
+    dated.setText("");   // since date is JTextField
+    timed.setText("");
 
     // Clear JTable
     DefaultTableModel model = (DefaultTableModel) tableitems.getModel();
@@ -259,18 +331,18 @@ public class DonationPanelMedicines extends javax.swing.JPanel {
         Border flatBorder = BorderFactory.createLineBorder(Color.LIGHT_GRAY); // para di nawawala
         
                             // For date field
-                datedonated.setEditable(true);          // must be true for white background
-                datedonated.setBackground(Color.WHITE); 
-                datedonated.setBorder(flatBorder);
-                datedonated.setOpaque(true);
-                datedonated.setFocusable(false);        // prevents user from typing
+                dated.setEditable(true);          // must be true for white background
+                dated.setBackground(Color.WHITE); 
+                dated.setBorder(flatBorder);
+                dated.setOpaque(true);
+                dated.setFocusable(false);        // prevents user from typing
 
                 // For time field
-                time.setEditable(true);          
-                time.setBackground(Color.WHITE); 
-                time.setBorder(flatBorder);
-                time.setOpaque(true);
-                time.setFocusable(false);        
+                timed.setEditable(true);          
+                timed.setBackground(Color.WHITE); 
+                timed.setBorder(flatBorder);
+                timed.setOpaque(true);
+                timed.setFocusable(false);        
         
       }
       
@@ -281,7 +353,7 @@ public class DonationPanelMedicines extends javax.swing.JPanel {
             // Timer updates every 1 second (1000 ms)
             new javax.swing.Timer(1000, e -> {
                 String currentTime = new SimpleDateFormat("hh:mm a").format(new Date());
-                time.setText(currentTime);
+                timed.setText(currentTime);
             }).start();
         }
 
@@ -302,16 +374,16 @@ public class DonationPanelMedicines extends javax.swing.JPanel {
         jLabel5 = new javax.swing.JLabel();
         jLabel6 = new javax.swing.JLabel();
         jLabel7 = new javax.swing.JLabel();
-        time = new javax.swing.JTextField();
+        timed = new javax.swing.JTextField();
         jLabel8 = new javax.swing.JLabel();
         closebtn = new javax.swing.JLabel();
         sts = new javax.swing.JLabel();
         deleterows = new javax.swing.JButton();
         clearall = new javax.swing.JButton();
-        type = new javax.swing.JTextField();
-        ctgry = new javax.swing.JTextField();
-        datedonated = new javax.swing.JTextField();
+        dated = new javax.swing.JTextField();
         donorname = new javax.swing.JTextField();
+        catype = new javax.swing.JComboBox<>();
+        categories = new javax.swing.JComboBox<>();
 
         setBackground(new java.awt.Color(255, 255, 255));
         setBorder(javax.swing.BorderFactory.createEtchedBorder());
@@ -357,23 +429,23 @@ public class DonationPanelMedicines extends javax.swing.JPanel {
         jLabel2.setFont(new java.awt.Font("Segoe UI", 1, 14)); // NOI18N
         jLabel2.setText("Medicines Donation ");
 
-        jLabel3.setFont(new java.awt.Font("Segoe UI", 0, 14)); // NOI18N
+        jLabel3.setFont(new java.awt.Font("Segoe UI", 1, 14)); // NOI18N
         jLabel3.setForeground(new java.awt.Color(33, 33, 33));
         jLabel3.setText("Donor Name:");
 
-        jLabel4.setFont(new java.awt.Font("Segoe UI", 0, 14)); // NOI18N
+        jLabel4.setFont(new java.awt.Font("Segoe UI", 1, 14)); // NOI18N
         jLabel4.setText("Category :");
 
-        jLabel5.setFont(new java.awt.Font("Segoe UI", 0, 14)); // NOI18N
+        jLabel5.setFont(new java.awt.Font("Segoe UI", 1, 14)); // NOI18N
         jLabel5.setText("Type :");
 
-        jLabel6.setFont(new java.awt.Font("Segoe UI", 0, 14)); // NOI18N
+        jLabel6.setFont(new java.awt.Font("Segoe UI", 1, 14)); // NOI18N
         jLabel6.setText("Date Donated:");
 
-        jLabel7.setFont(new java.awt.Font("Segoe UI", 0, 14)); // NOI18N
+        jLabel7.setFont(new java.awt.Font("Segoe UI", 1, 14)); // NOI18N
         jLabel7.setText("Time Donated:");
 
-        jLabel8.setFont(new java.awt.Font("Segoe UI", 0, 14)); // NOI18N
+        jLabel8.setFont(new java.awt.Font("Segoe UI", 1, 14)); // NOI18N
         jLabel8.setText("Status :");
 
         closebtn.setIcon(new javax.swing.ImageIcon(getClass().getResource("/nch/close (1).png"))); // NOI18N
@@ -410,183 +482,181 @@ public class DonationPanelMedicines extends javax.swing.JPanel {
         this.setLayout(layout);
         layout.setHorizontalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGroup(layout.createSequentialGroup()
+            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
                 .addGap(3, 3, 3)
                 .addComponent(jLabel1)
                 .addGap(2, 2, 2)
                 .addComponent(jLabel2, javax.swing.GroupLayout.PREFERRED_SIZE, 178, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                .addComponent(closebtn)
-                .addGap(4, 4, 4))
-            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
-                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                .addComponent(addrows)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addComponent(deleterows)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addComponent(submitbtn)
-                .addContainerGap())
-            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
+                .addComponent(closebtn))
+            .addGroup(layout.createSequentialGroup()
                 .addContainerGap()
-                .addComponent(jScrollPane1, javax.swing.GroupLayout.DEFAULT_SIZE, 719, Short.MAX_VALUE)
-                .addGap(10, 10, 10))
-            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
-                .addGap(56, 56, 56)
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
-                    .addGroup(layout.createSequentialGroup()
-                        .addComponent(jLabel8)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(sts, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
-                    .addComponent(ctgry, javax.swing.GroupLayout.DEFAULT_SIZE, 251, Short.MAX_VALUE)
-                    .addComponent(type)
-                    .addComponent(jLabel3)
-                    .addComponent(jLabel4)
-                    .addComponent(jLabel5)
-                    .addComponent(donorname))
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
-                    .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING, false)
-                        .addComponent(time, javax.swing.GroupLayout.Alignment.LEADING)
-                        .addComponent(jLabel7, javax.swing.GroupLayout.Alignment.LEADING)
-                        .addComponent(jLabel6, javax.swing.GroupLayout.Alignment.LEADING)
-                        .addComponent(datedonated, javax.swing.GroupLayout.Alignment.LEADING, javax.swing.GroupLayout.PREFERRED_SIZE, 260, javax.swing.GroupLayout.PREFERRED_SIZE))
-                    .addComponent(clearall))
-                .addGap(25, 25, 25))
+                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
+                        .addGroup(layout.createSequentialGroup()
+                            .addComponent(addrows, javax.swing.GroupLayout.PREFERRED_SIZE, 92, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                            .addComponent(deleterows, javax.swing.GroupLayout.PREFERRED_SIZE, 101, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                            .addComponent(submitbtn, javax.swing.GroupLayout.PREFERRED_SIZE, 98, javax.swing.GroupLayout.PREFERRED_SIZE))
+                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
+                            .addGroup(layout.createSequentialGroup()
+                                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
+                                    .addGroup(layout.createSequentialGroup()
+                                        .addComponent(jLabel8)
+                                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                        .addComponent(sts, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                                    .addComponent(jLabel3)
+                                    .addComponent(jLabel4)
+                                    .addComponent(jLabel5)
+                                    .addComponent(donorname)
+                                    .addComponent(catype, javax.swing.GroupLayout.PREFERRED_SIZE, 251, javax.swing.GroupLayout.PREFERRED_SIZE))
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING, false)
+                                        .addComponent(timed, javax.swing.GroupLayout.Alignment.LEADING)
+                                        .addComponent(jLabel7, javax.swing.GroupLayout.Alignment.LEADING)
+                                        .addComponent(dated, javax.swing.GroupLayout.Alignment.LEADING, javax.swing.GroupLayout.PREFERRED_SIZE, 260, javax.swing.GroupLayout.PREFERRED_SIZE))
+                                    .addComponent(clearall, javax.swing.GroupLayout.Alignment.TRAILING)
+                                    .addComponent(jLabel6)))
+                            .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 613, javax.swing.GroupLayout.PREFERRED_SIZE)))
+                    .addComponent(categories, javax.swing.GroupLayout.PREFERRED_SIZE, 251, javax.swing.GroupLayout.PREFERRED_SIZE))
+                .addContainerGap(15, Short.MAX_VALUE))
         );
         layout.setVerticalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
-                    .addGroup(layout.createSequentialGroup()
-                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                            .addGroup(layout.createSequentialGroup()
-                                .addContainerGap()
-                                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                                    .addComponent(jLabel1)
-                                    .addComponent(jLabel2, javax.swing.GroupLayout.PREFERRED_SIZE, 37, javax.swing.GroupLayout.PREFERRED_SIZE)))
-                            .addGroup(layout.createSequentialGroup()
-                                .addGap(3, 3, 3)
-                                .addComponent(closebtn, javax.swing.GroupLayout.PREFERRED_SIZE, 28, javax.swing.GroupLayout.PREFERRED_SIZE)))
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addContainerGap()
+                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addComponent(jLabel1)
+                    .addComponent(jLabel2, javax.swing.GroupLayout.PREFERRED_SIZE, 37, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(closebtn, javax.swing.GroupLayout.PREFERRED_SIZE, 28, javax.swing.GroupLayout.PREFERRED_SIZE))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
                         .addComponent(jLabel3)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(donorname, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addComponent(donorname, javax.swing.GroupLayout.PREFERRED_SIZE, 25, javax.swing.GroupLayout.PREFERRED_SIZE)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                         .addComponent(jLabel5)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(type, javax.swing.GroupLayout.PREFERRED_SIZE, 25, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addGap(9, 9, 9)
+                        .addComponent(catype, javax.swing.GroupLayout.PREFERRED_SIZE, 25, javax.swing.GroupLayout.PREFERRED_SIZE)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                         .addComponent(jLabel4)
+                        .addGap(9, 9, 9)
+                        .addComponent(categories, javax.swing.GroupLayout.PREFERRED_SIZE, 25, javax.swing.GroupLayout.PREFERRED_SIZE)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(ctgry, javax.swing.GroupLayout.PREFERRED_SIZE, 25, javax.swing.GroupLayout.PREFERRED_SIZE))
-                    .addGroup(layout.createSequentialGroup()
+                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                            .addComponent(jLabel8, javax.swing.GroupLayout.PREFERRED_SIZE, 20, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addComponent(sts))
+                        .addGap(18, 18, 18))
+                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
                         .addComponent(jLabel6)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(datedonated, javax.swing.GroupLayout.PREFERRED_SIZE, 25, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addComponent(dated, javax.swing.GroupLayout.PREFERRED_SIZE, 25, javax.swing.GroupLayout.PREFERRED_SIZE)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                         .addComponent(jLabel7)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(time, javax.swing.GroupLayout.PREFERRED_SIZE, 25, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
-                        .addComponent(clearall)))
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                    .addComponent(jLabel8, javax.swing.GroupLayout.PREFERRED_SIZE, 20, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addComponent(sts))
-                .addGap(18, 18, 18)
+                        .addComponent(timed, javax.swing.GroupLayout.PREFERRED_SIZE, 25, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(clearall)
+                        .addGap(75, 75, 75)))
                 .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 223, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
                     .addComponent(submitbtn, javax.swing.GroupLayout.PREFERRED_SIZE, 23, javax.swing.GroupLayout.PREFERRED_SIZE)
                     .addComponent(deleterows, javax.swing.GroupLayout.PREFERRED_SIZE, 23, javax.swing.GroupLayout.PREFERRED_SIZE)
                     .addComponent(addrows, javax.swing.GroupLayout.PREFERRED_SIZE, 23, javax.swing.GroupLayout.PREFERRED_SIZE))
-                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                .addContainerGap(15, Short.MAX_VALUE))
         );
     }// </editor-fold>//GEN-END:initComponents
 
     private void addrowsActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_addrowsActionPerformed
     DefaultTableModel model = (DefaultTableModel) tableitems.getModel();
+
+    // ✅ Validate column count
+    if (model.getColumnCount() != 6) {
+        JOptionPane.showMessageDialog(null, "Table must have exactly 6 columns: Item Name, Quantity, Mfg Date, Exp Date, Units, Description.");
+        return;
+    }
+
+    // ✅ Add empty row with proper types
     Object[] newRow = {
-        "",     // Item Name
-        "",     // Quantity
-        null,   // Mfg Date
-        null,   // Exp Date
-        "",     // Units
-        ""      // Description
+        "",     // Item Name (String)
+        "",     // Quantity (String or numeric input)
+        null,   // Mfg Date (JDateChooser-compatible)
+        null,   // Exp Date (JDateChooser-compatible)
+        "",     // Units (String)
+        ""      // Description (String)
     };
+
     model.addRow(newRow);
     }//GEN-LAST:event_addrowsActionPerformed
 
     private void submitbtnActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_submitbtnActionPerformed
-     String donorName = donorname.getText().trim();
-    String types = type.getText().trim();
+   {
+    String donorName = donorname.getText().trim();
+    String types = catype.getSelectedItem() != null ? catype.getSelectedItem().toString().trim() : "";
     String status = sts.getText().trim();
+    String dateText = dated.getText().trim();
+    String timeDonated = timed.getText().trim();
 
-    String dateText = datedonated.getText().trim();
-    java.sql.Date dateDonated = null;
-    if (!dateText.isEmpty()) {
-        try {
-            java.util.Date parsedDate = new SimpleDateFormat("yy/MM/dd").parse(dateText);
-            dateDonated = new java.sql.Date(parsedDate.getTime());
-        } catch (ParseException e) {
-            JOptionPane.showMessageDialog(null, "Invalid date format. Please use yy/MM/dd.");
-            return;
-        }
+    if (donorName.isEmpty() || types.isEmpty() || status.isEmpty() || dateText.isEmpty() || timeDonated.isEmpty()) {
+        JOptionPane.showMessageDialog(null, "Please fill in all donation details.");
+        return;
     }
 
-    String timeDonated = time.getText().trim();
+    java.sql.Date dateDonated;
+    try {
+        java.util.Date parsedDate = new SimpleDateFormat("dd/MM/yyyy").parse(dateText);
+        dateDonated = new java.sql.Date(parsedDate.getTime());
+    } catch (Exception e) {
+        JOptionPane.showMessageDialog(null, "Invalid date format. Please use dd/MM/yyyy.");
+        return;
+    }
 
     if (tableitems.isEditing()) tableitems.getCellEditor().stopCellEditing();
-
     DefaultTableModel model = (DefaultTableModel) tableitems.getModel();
-    boolean hasValidItem = false;
+    if (model.getRowCount() == 0) {
+        JOptionPane.showMessageDialog(null, "Please add at least one donation item.");
+        return;
+    }
 
-    for (int i = 0; i < model.getRowCount(); i++) {
-        Object itemNameObj = model.getValueAt(i, 0);
-        Object quantityObj = model.getValueAt(i, 1);
-        if (itemNameObj != null && quantityObj != null) {
-            String itemName = itemNameObj.toString().trim();
-            String qtyStr = quantityObj.toString().trim();
-            try {
-                int qty = Integer.parseInt(qtyStr);
-                if (!itemName.isEmpty() && qty > 0) {
-                    hasValidItem = true;
-                    break;
-                }
-            } catch (NumberFormatException ignored) {}
+    ApprovalDonationPanel approvalPanel = new ApprovalDonationPanel();
+    approvalPanel.setInspectedBy(SessionManager.currentUserFullName);
+    approvalPanel.setDate(new SimpleDateFormat("dd/MM/yyyy").format(new java.util.Date()));
+    approvalPanel.setRemarks("");
+
+    JDialog dialog = new JDialog((Frame) null, "Donation Approval", true);
+    dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+    dialog.getContentPane().add(approvalPanel);
+    dialog.pack();
+    dialog.setLocationRelativeTo(null);
+
+    // ✅ Attach confirm listener
+    approvalPanel.setConfirmListener(e -> {
+        String inspectedBy = approvalPanel.getInspectedBy();
+        String remarks = approvalPanel.getRemarks();
+
+        if (inspectedBy.isEmpty() || remarks.isEmpty()) {
+            JOptionPane.showMessageDialog(null, "Please complete inspection details.");
+            return;
         }
-    }
 
-    if (!hasValidItem) {
-        JOptionPane.showMessageDialog(null, "Please add at least one valid item with a quantity greater than 0.");
-        return;
-    }
+        dialog.dispose(); // close the dialog
 
-    // Prompt for InspectedBy and Remarks
-    JTextField inspectedByField = new JTextField(SessionManager.currentUserFullName);
-    JTextArea remarksArea = new JTextArea(4, 20);
-    remarksArea.setLineWrap(true);
-    remarksArea.setWrapStyleWord(true);
+        // ✅ Proceed to save donation
+        saveDonationToDatabase(donorName, types, status, dateDonated, timeDonated, inspectedBy, remarks, model);
+    });
 
-    JPanel panel = new JPanel(new BorderLayout(5, 5));
-    JPanel fields = new JPanel(new GridLayout(0, 1, 5, 5));
-    fields.add(new JLabel("Inspected By:"));
-    fields.add(inspectedByField);
-    fields.add(new JLabel("Remarks:"));
-    fields.add(new JScrollPane(remarksArea));
-    panel.add(fields, BorderLayout.CENTER);
+    dialog.setVisible(true); // show after listener is attached   
+    }//GEN-LAST:event_submitbtnActionPerformed
+  }
 
-    int result = JOptionPane.showConfirmDialog(null, panel, "Inspection Details",
-            JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
-
-    if (result != JOptionPane.OK_OPTION) {
-        JOptionPane.showMessageDialog(null, "Submission cancelled.");
-        return;
-    }
-
-    String inspectedBy = inspectedByField.getText().trim();
-    String remarks = remarksArea.getText().trim();
-
+    private void saveDonationToDatabase(String donorName, String types, String status,
+                                   java.sql.Date dateDonated, String timeDonated,
+                                   String inspectedBy, String remarks,
+                                   DefaultTableModel model) {
     String dbURL = "jdbc:sqlserver://localhost:1433;databaseName=nchdbase;encrypt=true;trustServerCertificate=true";
     String dbUser = "admin";
     String dbPass = "yeyel2025";
@@ -594,97 +664,137 @@ public class DonationPanelMedicines extends javax.swing.JPanel {
     try (Connection conn = DriverManager.getConnection(dbURL, dbUser, dbPass)) {
         conn.setAutoCommit(false);
 
-        // Get last batch number
-        int lastBatchNumber = 0;
-        String getLastBatchSQL = "SELECT TOP 1 BatchNo FROM medicines WHERE BatchNo LIKE 'BATCH-%' ORDER BY GenericID DESC";
+        // 🔍 Get last DonationID
+        String lastDonationID = "DNT-000";
+        int lastDonationNum = 0;
         try (Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(getLastBatchSQL)) {
+             ResultSet rs = stmt.executeQuery("SELECT TOP 1 DonationID FROM donation_records_medicines WHERE DonationID LIKE 'DNT-%' ORDER BY DonationID DESC")) {
             if (rs.next()) {
-                String lastBatch = rs.getString("BatchNo"); // e.g., "BATCH-0005"
-                String numberPart = lastBatch.replace("BATCH-", "").trim();
-                try {
-                    lastBatchNumber = Integer.parseInt(numberPart);
-                } catch (NumberFormatException ignored) {}
+                String lastID = rs.getString("DonationID").replace("DNT-", "").trim();
+                lastDonationNum = Integer.parseInt(lastID);
             }
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(null, "❌ Error reading DonationID: " + e.getMessage());
+            conn.rollback();
+            return;
+        }
+        String newDonationID = String.format("DNT-%03d", lastDonationNum + 1);
+
+        // 🔍 Get last BatchNo
+        String lastBatchNo = "BATCH-0000";
+        int lastBatchNum = 0;
+        try (Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT TOP 1 BatchNo FROM medicines ORDER BY BatchNo DESC")) {
+            if (rs.next()) lastBatchNo = rs.getString("BatchNo");
+            lastBatchNum = Integer.parseInt(lastBatchNo.replace("BATCH-", ""));
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(null, "❌ Error reading BatchNo: " + e.getMessage());
+            conn.rollback();
+            return;
         }
 
-        // Insert each medicine item
-        String insertMedSQL = "INSERT INTO medicines " +
-            "(GenericName, QuantityInStock, Units, Description, MfgDate, ExpDate, BatchNo, StockStatus, Condition) " +
-            "VALUES (?, ?, COALESCE(?, 'pcs'), ?, ?, ?, ?, ?, ?)";
+        // 🔍 Get last valid GenericID
+        String lastGenericID = "GEN-000";
+        int lastGenNum = 0;
+        try (Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT GenericID FROM medicines WHERE GenericID LIKE 'GEN-%' ORDER BY GenericID DESC")) {
+            while (rs.next()) {
+                String candidateID = rs.getString("GenericID");
+                Matcher matcher = Pattern.compile("GEN-(\\d{3})").matcher(candidateID);
+                if (matcher.matches()) {
+                    lastGenNum = Integer.parseInt(matcher.group(1));
+                    break;
+                }
+            }
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(null, "❌ Error reading GenericID: " + e.getMessage());
+            conn.rollback();
+            return;
+        }
 
-        try (PreparedStatement medPstmt = conn.prepareStatement(insertMedSQL)) {
+        // 🧩 Insert donation header
+        String insertDonationSQL = """
+            INSERT INTO donation_records_medicines 
+            (DonationID, DonorName, DonationType, DonationStatus, DateDonated, TimeDonated, TotalItems, InspectedBy, Remarks, DateEncoded)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, GETDATE())
+        """;
+
+        try (PreparedStatement pstmt = conn.prepareStatement(insertDonationSQL)) {
+            pstmt.setString(1, newDonationID);
+            pstmt.setString(2, donorName);
+            pstmt.setString(3, types);
+            pstmt.setString(4, status);
+            pstmt.setDate(5, dateDonated);
+            pstmt.setString(6, timeDonated);
+            pstmt.setInt(7, model.getRowCount());
+            pstmt.setString(8, inspectedBy);
+            pstmt.setString(9, remarks);
+            pstmt.executeUpdate();
+        }
+
+        // 🧩 Insert medicines
+        String insertMedSQL = """
+            INSERT INTO medicines 
+            (GenericName, Units, Description, QuantityInStock, MfgDate, ExpDate, BatchNo, StockStatus, Condition, GenericID)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """;
+
+        try (PreparedStatement medStmt = conn.prepareStatement(insertMedSQL)) {
             for (int i = 0; i < model.getRowCount(); i++) {
-                String itemName = (model.getValueAt(i, 0) != null) ? model.getValueAt(i, 0).toString().trim() : "";
-                String qtyStr = (model.getValueAt(i, 1) != null) ? model.getValueAt(i, 1).toString().trim() : "";
-                Date mfgDateRaw = (Date) model.getValueAt(i, 2);
-                Date expDateRaw = (Date) model.getValueAt(i, 3);
-                String unit = (model.getValueAt(i, 4) != null) ? model.getValueAt(i, 4).toString().trim() : "pcs";
-                String description = (model.getValueAt(i, 5) != null) ? model.getValueAt(i, 5).toString().trim() : "";
+                String genericName = model.getValueAt(i, 0).toString().trim(); // GenericName
+                String quantityStr = model.getValueAt(i, 1).toString().trim(); // Quantity
+                Object mfgObj      = model.getValueAt(i, 2);                   // MfgDate
+                Object expObj      = model.getValueAt(i, 3);                   // ExpDate
+                String units       = model.getValueAt(i, 4).toString().trim(); // Units
+                String description = model.getValueAt(i, 5).toString().trim(); // Description
+                String batchNo     = String.format("BATCH-%04d", ++lastBatchNum);
 
-                if (itemName.isEmpty() || qtyStr.isEmpty()) continue;
+                // ✅ Validate quantity
+                if (quantityStr.isEmpty() || !quantityStr.matches("\\d+")) {
+                    JOptionPane.showMessageDialog(null, "❌ Invalid quantity at row " + (i + 1) + ": '" + quantityStr + "'");
+                    conn.rollback();
+                    return;
+                }
+                int quantity = Integer.parseInt(quantityStr);
+                String stockStatus = (quantity <= 10) ? "Low Stock" : "In Stock";
 
-                try {
-                    int quantity = Integer.parseInt(qtyStr);
-                    if (quantity <= 0) continue;
+                // ✅ Validate dates
+                if (!(mfgObj instanceof Date) || !(expObj instanceof Date)) {
+                    JOptionPane.showMessageDialog(null, "❌ Invalid Mfg/Exp date format at row " + (i + 1));
+                    conn.rollback();
+                    return;
+                }
 
-                    java.sql.Date mfgDate = (mfgDateRaw != null) ? new java.sql.Date(mfgDateRaw.getTime()) : null;
-                    java.sql.Date expDate = (expDateRaw != null) ? new java.sql.Date(expDateRaw.getTime()) : null;
+                java.sql.Date mfgDate = new java.sql.Date(((Date) mfgObj).getTime());
+                java.sql.Date expDate = new java.sql.Date(((Date) expObj).getTime());
 
-                    String batchNo = "BATCH-" + String.format("%04d", lastBatchNumber + i + 1);
+                // ✅ Generate clean, sequential GenericID
+                String genericID = String.format("GEN-%03d", ++lastGenNum);
 
-                    medPstmt.setString(1, itemName);
-                    medPstmt.setInt(2, quantity);
-                    medPstmt.setString(3, unit);
-                    medPstmt.setString(4, description);
-                    medPstmt.setDate(5, mfgDate);
-                    medPstmt.setDate(6, expDate);
-                    medPstmt.setString(7, batchNo);
-                    medPstmt.setString(8, "Low Stock");
-                    medPstmt.setString(9, "Good");
-                    medPstmt.addBatch();
-                } catch (NumberFormatException ignored) {}
+                medStmt.setString(1, genericName);
+                medStmt.setString(2, units);
+                medStmt.setString(3, description);
+                medStmt.setInt(4, quantity);
+                medStmt.setDate(5, mfgDate);
+                medStmt.setDate(6, expDate);
+                medStmt.setString(7, batchNo);
+                medStmt.setString(8, stockStatus);
+                medStmt.setString(9, "Good");
+                medStmt.setString(10, genericID);
+                medStmt.addBatch();
             }
-            medPstmt.executeBatch();
-        }
-
-        // Insert donation summary
-        String insertDonationSQL = "INSERT INTO donation_records_medicines " +
-            "(DonorName, DonationType, DonationStatus, DateDonated, TimeDonated, TotalItems, InspectedBy, Remarks) " +
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-
-        try (PreparedStatement donationPstmt = conn.prepareStatement(insertDonationSQL)) {
-            int totalItems = model.getRowCount();
-
-            donationPstmt.setString(1, donorName);
-            donationPstmt.setString(2, types);
-            donationPstmt.setString(3, status);
-            donationPstmt.setDate(4, dateDonated);
-            donationPstmt.setString(5, timeDonated);
-            donationPstmt.setInt(6, totalItems);
-            donationPstmt.setString(7, inspectedBy);
-            donationPstmt.setString(8, remarks);
-
-            donationPstmt.executeUpdate();
+            medStmt.executeBatch();
         }
 
         conn.commit();
-        JOptionPane.showMessageDialog(null, "Donation and medicines successfully saved!");
-
-        model.setRowCount(0);
-        clearall();
-        sts.setText("Available");
-
-        Window window = SwingUtilities.getWindowAncestor(this);
-        if (window != null) window.dispose();
-
-    } catch (SQLException e) {
-        e.printStackTrace();
-        JOptionPane.showMessageDialog(null, "Error saving donation: " + e.getMessage());
+        JOptionPane.showMessageDialog(null, "✅ Donation successfully confirmed and saved!\nDonation ID: " + newDonationID);
+    } catch (Exception ex) {
+        ex.printStackTrace();
+        JOptionPane.showMessageDialog(null, "❌ Error saving donation: " + ex.getMessage());
     }
-    }//GEN-LAST:event_submitbtnActionPerformed
-
+}
     
+   
     private void submitbtnMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_submitbtnMouseClicked
     
     }//GEN-LAST:event_submitbtnMouseClicked
@@ -698,57 +808,65 @@ public class DonationPanelMedicines extends javax.swing.JPanel {
     }//GEN-LAST:event_closebtnMouseClicked
 
     private void deleterowsActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_deleterowsActionPerformed
-          DefaultTableModel model = (DefaultTableModel) tableitems.getModel();
-        int[] selectedRows = tableitems.getSelectedRows();
+    DefaultTableModel model = (DefaultTableModel) tableitems.getModel();
+    int[] selectedRows = tableitems.getSelectedRows();
 
-        if (selectedRows.length == 0) {
-            JOptionPane.showMessageDialog(this, "Please select at least one row to delete.");
-            return;
-        }
+    if (selectedRows.length == 0) {
+        JOptionPane.showMessageDialog(this, "Please select at least one row to delete.");
+        return;
+    }
 
-        int confirm = JOptionPane.showConfirmDialog(this,
-                "Are you sure you want to delete the selected row(s)?",
-                "Confirm Deletion", JOptionPane.YES_NO_OPTION);
+    int confirm = JOptionPane.showConfirmDialog(this,
+            "Are you sure you want to delete the selected row(s)?",
+            "Confirm Deletion", JOptionPane.YES_NO_OPTION);
 
-        if (confirm == JOptionPane.YES_OPTION) {
-            // Delete from bottom to top to prevent shifting issues
-            for (int i = selectedRows.length - 1; i >= 0; i--) {
-                model.removeRow(selectedRows[i]);
+    if (confirm == JOptionPane.YES_OPTION) {
+        // Validate row indices before deletion
+        int rowCount = model.getRowCount();
+        for (int i = selectedRows.length - 1; i >= 0; i--) {
+            int rowIndex = selectedRows[i];
+            if (rowIndex >= 0 && rowIndex < rowCount) {
+                model.removeRow(rowIndex);
             }
         }
+
+        // Optional: clear selection after deletion
+        tableitems.clearSelection();
+    }  
     }//GEN-LAST:event_deleterowsActionPerformed
 
     private void clearall() {
         // Reset supplier combo box
     // Reset type and category
-    type.setText("");
-    type.setEditable(false);
-    type.setBackground(Color.WHITE);
-    type.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY));
+     catype.setSelectedIndex(-1); // ✅ clears selection without removing items
+    catype.setEditable(false);
+    catype.setBackground(Color.WHITE);
+    catype.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY));
 
-    ctgry.setText("");
-    ctgry.setEditable(false);
-    ctgry.setBackground(Color.WHITE);
-    ctgry.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY));
+   // Clear JComboBox selection
+    categories.setSelectedIndex(-1); // ✅ clears selection without removing items
+    categories.setEditable(false);
+    categories.setBackground(Color.WHITE);
+    categories.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY));
 
     // Set current date and time
     Date now = new Date();
     SimpleDateFormat dateFormat = new SimpleDateFormat("yy/MM/dd");     // yy/MM/dd format
     SimpleDateFormat timeFormat = new SimpleDateFormat("hh:mm:ss a");   // 12-hour format with AM/PM
 
-    datedonated.setText(dateFormat.format(now));
-    datedonated.setEditable(true); 
-    datedonated.setBackground(Color.WHITE);
-    datedonated.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY));
-    datedonated.setOpaque(true);
-    datedonated.setFocusable(false);
+    dated.setText(dateFormat.format(now));
+    dated.setEditable(true); 
+    dated.setBackground(Color.WHITE);
+    dated.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY));
+    dated.setOpaque(true);
+    dated.setFocusable(false);
 
-    time.setText(timeFormat.format(now));
-    time.setEditable(true); 
-    time.setBackground(Color.WHITE);
-    time.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY));
-    time.setOpaque(true);
-    time.setFocusable(false);
+    timed.setText(timeFormat.format(now));
+    timed.setEditable(true); 
+    timed.setBackground(Color.WHITE);
+    timed.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY));
+    timed.setOpaque(true);
+    timed.setFocusable(false);
 
     // Clear the table
     DefaultTableModel model = (DefaultTableModel) tableitems.getModel();
@@ -762,10 +880,11 @@ public class DonationPanelMedicines extends javax.swing.JPanel {
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JButton addrows;
+    private javax.swing.JComboBox<String> categories;
+    private javax.swing.JComboBox<String> catype;
     private javax.swing.JButton clearall;
     private javax.swing.JLabel closebtn;
-    private javax.swing.JTextField ctgry;
-    private javax.swing.JTextField datedonated;
+    private javax.swing.JTextField dated;
     private javax.swing.JButton deleterows;
     private javax.swing.JTextField donorname;
     private javax.swing.JLabel jLabel1;
@@ -780,8 +899,7 @@ public class DonationPanelMedicines extends javax.swing.JPanel {
     private javax.swing.JLabel sts;
     private javax.swing.JButton submitbtn;
     private javax.swing.JTable tableitems;
-    private javax.swing.JTextField time;
-    private javax.swing.JTextField type;
+    private javax.swing.JTextField timed;
     // End of variables declaration//GEN-END:variables
 
    

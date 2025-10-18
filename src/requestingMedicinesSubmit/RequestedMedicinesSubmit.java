@@ -78,165 +78,167 @@ import java.awt.Frame;
     import javax.swing.JDialog;
     import javax.swing.table.DefaultTableCellRenderer;
     import javax.swing.table.JTableHeader;
+import requestingMedicinesSubmit.ApprovalRequestPanel;
 
-
-public class RequestedMedicinesSubmit extends javax.swing.JPanel {
     
+        public class RequestedMedicinesSubmit extends javax.swing.JPanel {
 
+    public RequestedMedicinesSubmit() {
+        initComponents();        
 
-        public RequestedMedicinesSubmit() {
-            initComponents();        
-            
-            // Disable buttons by default
-            approvedreq.setEnabled(false);
-            rejectedbtn.setEnabled(false);
-
-            table_request_sts.getSelectionModel().addListSelectionListener(e -> {
-    if (!e.getValueIsAdjusting()) {
-        int viewRow = table_request_sts.getSelectedRow();
-        if (viewRow >= 0) {
-            int modelRow = table_request_sts.convertRowIndexToModel(viewRow);
-            DefaultTableModel model = (DefaultTableModel) table_request_sts.getModel();
-            int statusColIndex = model.findColumn("Approval Status");
-
-            if (statusColIndex == -1) {
-                JOptionPane.showMessageDialog(null, "'Approval Status' column not found.");
-                approvedreq.setEnabled(false);
-                rejectedbtn.setEnabled(false);
-                return;
-            }
-
-            String status = model.getValueAt(modelRow, statusColIndex).toString().trim();
-            boolean isRequested = "Requested".equalsIgnoreCase(status);
-            approvedreq.setEnabled(isRequested);
-            rejectedbtn.setEnabled(isRequested);
-        } else {
-            approvedreq.setEnabled(false);
-            rejectedbtn.setEnabled(false);
-        }
-    }
-});
-
-
-        }
-    public void setRequestData(String requestId) {
-    req_date.setEditable(false);
-    req_name.setEditable(false);
-    req_department.setEditable(false);
-
-    req_date.setBackground(Color.WHITE);
-    req_name.setBackground(Color.WHITE);
-    req_department.setBackground(Color.WHITE);
-
-    if (requestId == null) {
-        req_id.setText("");
-        req_date.setText(new SimpleDateFormat("MM-dd-yyyy").format(new java.util.Date()));
-        req_name.setText("");
-        req_department.setText("");
-        ((DefaultTableModel) table_request_sts.getModel()).setRowCount(0);
-
+        // Disable buttons by default
         approvedreq.setEnabled(false);
         rejectedbtn.setEnabled(false);
-        approvedallbtn.setEnabled(false);
-        rejectedall.setEnabled(false);
-        return;
+
+        table_request_sts.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) {
+                int viewRow = table_request_sts.getSelectedRow();
+                if (viewRow >= 0) {
+                    int modelRow = table_request_sts.convertRowIndexToModel(viewRow);
+                    DefaultTableModel model = (DefaultTableModel) table_request_sts.getModel();
+                    int statusColIndex = model.findColumn("Approval Status");
+
+                    if (statusColIndex == -1) {
+                        JOptionPane.showMessageDialog(null, "'Approval Status' column not found.");
+                        approvedreq.setEnabled(false);
+                        rejectedbtn.setEnabled(false);
+                        return;
+                    }
+
+                    String status = model.getValueAt(modelRow, statusColIndex).toString().trim();
+                    boolean isRequested = "Requested".equalsIgnoreCase(status);
+                    approvedreq.setEnabled(isRequested);
+                    rejectedbtn.setEnabled(isRequested);
+                } else {
+                    approvedreq.setEnabled(false);
+                    rejectedbtn.setEnabled(false);
+                }
+            }
+        });
     }
 
-    req_id.setText(requestId);
+    public void setRequestData(String requestId) {
+        req_date.setEditable(false);
+        req_name.setEditable(false);
+        req_department.setEditable(false);
 
-    try (Connection conn = DriverManager.getConnection(
-            "jdbc:sqlserver://localhost:1433;databaseName=nchdbase;encrypt=true;trustServerCertificate=true",
-            "admin", "yeyel2025")) {
+        req_date.setBackground(Color.WHITE);
+        req_name.setBackground(Color.WHITE);
+        req_department.setBackground(Color.WHITE);
 
-        // Load request header
-        String query = "SELECT request_date, department, requested_by FROM requests WHERE request_id = ?";
-        PreparedStatement ps = conn.prepareStatement(query);
-        ps.setString(1, requestId);
-        ResultSet rs = ps.executeQuery();
-        if (rs.next()) {
-            req_date.setText(rs.getString("request_date"));
-            req_department.setText(rs.getString("department"));
-            req_name.setText(rs.getString("requested_by"));
+        if (requestId == null || requestId.isEmpty()) {
+            req_id.setText("");
+            req_date.setText(new SimpleDateFormat("MM-dd-yyyy").format(new java.util.Date()));
+            req_name.setText("");
+            req_department.setText("");
+            ((DefaultTableModel) table_request_sts.getModel()).setRowCount(0);
+
+            approvedreq.setEnabled(false);
+            rejectedbtn.setEnabled(false);
+            approvedallbtn.setEnabled(false);
+            rejectedall.setEnabled(false);
+            return;
         }
 
-        // Load requested items with approval_status
-        String itemQuery = """
-            SELECT ri.GenericID, m.GenericName, m.Units, m.Description,
-                   ri.quantity_requested, m.MfgDate, m.ExpDate, m.BatchNo,
-                   ri.approval_status
-            FROM requested_items_medicines ri
-            JOIN medicines m ON ri.GenericID = m.GenericID
-            WHERE ri.request_id = ?
-        """;
-        PreparedStatement psItems = conn.prepareStatement(itemQuery);
-        psItems.setString(1, requestId);
-        ResultSet rsItems = psItems.executeQuery();
+        req_id.setText(requestId);
 
-        DefaultTableModel model = new DefaultTableModel(
-            new Object[]{
-                "GenericID", "GenericName", "Units", "Description",
-                "Quantity Requested", "MfgDate", "ExpDate", "BatchNo", "Approval Status"
-            }, 0
-        ) {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
-            }
-        };
+        try (Connection conn = DriverManager.getConnection(
+                "jdbc:sqlserver://localhost:1433;databaseName=nchdbase;encrypt=true;trustServerCertificate=true",
+                "admin", "yeyel2025")) {
 
-        boolean hasRequested = false;
-
-        while (rsItems.next()) {
-            String approvalStatus = rsItems.getString("approval_status");
-            if ("Requested".equalsIgnoreCase(approvalStatus)) {
-                hasRequested = true;
+            // Load request header
+            String query = "SELECT request_date, department, requested_by FROM requests WHERE request_id = ?";
+            try (PreparedStatement ps = conn.prepareStatement(query)) {
+                ps.setString(1, requestId); // ✅ VARCHAR-safe
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        req_date.setText(rs.getString("request_date"));
+                        req_department.setText(rs.getString("department"));
+                        req_name.setText(rs.getString("requested_by"));
+                    }
+                }
             }
 
-            model.addRow(new Object[]{
-                rsItems.getInt("GenericID"),
-                rsItems.getString("GenericName"),
-                rsItems.getString("Units"),
-                rsItems.getString("Description"),
-                rsItems.getInt("quantity_requested"),
-                rsItems.getDate("MfgDate"),
-                rsItems.getDate("ExpDate"),
-                rsItems.getString("BatchNo"),
-                approvalStatus
-            });
+            // Load requested items with approval_status
+            String itemQuery = """
+                SELECT ri.GenericID, m.GenericName, m.Units, m.Description,
+                       ri.quantity_requested, m.MfgDate, m.ExpDate, m.BatchNo,
+                       ri.approval_status
+                FROM requested_items_medicines ri
+                JOIN medicines m ON ri.GenericID = m.GenericID
+                WHERE ri.request_id = ?
+            """;
+
+            DefaultTableModel model = new DefaultTableModel(
+                new Object[]{
+                    "GenericID", "GenericName", "Units", "Description",
+                    "Quantity Requested", "MfgDate", "ExpDate", "BatchNo", "Approval Status"
+                }, 0
+            ) {
+                @Override
+                public boolean isCellEditable(int row, int column) {
+                    return false;
+                }
+            };
+
+            boolean hasRequested = false;
+
+            try (PreparedStatement psItems = conn.prepareStatement(itemQuery)) {
+                psItems.setString(1, requestId); // ✅ VARCHAR-safe
+                try (ResultSet rsItems = psItems.executeQuery()) {
+                    while (rsItems.next()) {
+                        String approvalStatus = rsItems.getString("approval_status");
+                        if ("Requested".equalsIgnoreCase(approvalStatus)) {
+                            hasRequested = true;
+                        }
+
+                        model.addRow(new Object[]{
+                            rsItems.getString("GenericID"), // ✅ FIXED: VARCHAR-safe
+                            rsItems.getString("GenericName"),
+                            rsItems.getString("Units"),
+                            rsItems.getString("Description"),
+                            rsItems.getInt("quantity_requested"),
+                            rsItems.getDate("MfgDate"),
+                            rsItems.getDate("ExpDate"),
+                            rsItems.getString("BatchNo"),
+                            approvalStatus
+                        });
+                    }
+                }
+            }
+
+            table_request_sts.setModel(model);
+
+            // Header styling
+            JTableHeader header = table_request_sts.getTableHeader();
+            header.setBackground(Color.BLACK);
+            header.setForeground(Color.WHITE);
+
+            // GenericID column red
+            DefaultTableCellRenderer genericIdRenderer = new DefaultTableCellRenderer();
+            genericIdRenderer.setForeground(Color.RED);
+            genericIdRenderer.setHorizontalAlignment(JLabel.CENTER);
+            table_request_sts.getColumnModel().getColumn(0).setCellRenderer(genericIdRenderer);
+
+            // Center other columns
+            DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
+            centerRenderer.setHorizontalAlignment(JLabel.CENTER);
+            for (int i = 1; i < table_request_sts.getColumnCount(); i++) {
+                table_request_sts.getColumnModel().getColumn(i).setCellRenderer(centerRenderer);
+            }
+
+            // Enable/disable buttons based on approval status
+            approvedreq.setEnabled(hasRequested);
+            rejectedbtn.setEnabled(hasRequested);
+            approvedallbtn.setEnabled(hasRequested);
+            rejectedall.setEnabled(hasRequested);
+
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+            JOptionPane.showMessageDialog(null, "Failed to load request info: " + ex.getMessage());
         }
-
-        table_request_sts.setModel(model);
-
-        // Header styling
-        JTableHeader header = table_request_sts.getTableHeader();
-        header.setBackground(Color.BLACK);
-        header.setForeground(Color.WHITE);
-
-        // GenericID column red
-        DefaultTableCellRenderer genericIdRenderer = new DefaultTableCellRenderer();
-        genericIdRenderer.setForeground(Color.RED);
-        genericIdRenderer.setHorizontalAlignment(JLabel.CENTER);
-        table_request_sts.getColumnModel().getColumn(0).setCellRenderer(genericIdRenderer);
-
-        // Center other columns
-        DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
-        centerRenderer.setHorizontalAlignment(JLabel.CENTER);
-        for (int i = 1; i < table_request_sts.getColumnCount(); i++) {
-            table_request_sts.getColumnModel().getColumn(i).setCellRenderer(centerRenderer);
-        }
-
-        // Enable/disable buttons based on approval status
-        approvedreq.setEnabled(hasRequested);
-        rejectedbtn.setEnabled(hasRequested);
-        approvedallbtn.setEnabled(hasRequested);
-        rejectedall.setEnabled(hasRequested);
-
-    } catch (SQLException ex) {
-        ex.printStackTrace();
-        JOptionPane.showMessageDialog(null, "Failed to load request info.");
     }
-}    
-        
+
 
             
     @SuppressWarnings("unchecked")
@@ -405,7 +407,7 @@ public class RequestedMedicinesSubmit extends javax.swing.JPanel {
     }// </editor-fold>//GEN-END:initComponents
 
     private void approvedreqMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_approvedreqMouseClicked
-    int[] selectedRows = table_request_sts.getSelectedRows();
+     int[] selectedRows = table_request_sts.getSelectedRows();
     if (selectedRows.length == 0) {
         JOptionPane.showMessageDialog(null, "Please select at least one row to approve.");
         return;
@@ -439,20 +441,17 @@ public class RequestedMedicinesSubmit extends javax.swing.JPanel {
         }
     });
 
-    dialog.setVisible(true);
+    dialog.setVisible(true);    
     }//GEN-LAST:event_approvedreqMouseClicked
-    
     private void approveSelectedItems(int[] selectedRows, String approvedBy, java.sql.Date approvalDate) {
-    String requestId = req_id.getText();
+    String requestId = req_id.getText().trim();
 
-    // Insert record to approved_medicines_request
     String insertQuery = """
         INSERT INTO approved_medicines_request 
         (request_id, medicine_id, approved_by, approval_date) 
         VALUES (?, ?, ?, ?)
     """;
 
-    // Update approval and issuing status in requested_items_medicines
     String updateStatusQuery = """
         UPDATE requested_items_medicines 
         SET approval_status = ?, issuing_status = ? 
@@ -483,25 +482,21 @@ public class RequestedMedicinesSubmit extends javax.swing.JPanel {
                 int modelRowIndex = table_request_sts.convertRowIndexToModel(viewRowIndex);
                 String currentStatus = model.getValueAt(modelRowIndex, statusColIndex).toString().trim();
 
-                // Only approve rows that are still "Requested"
                 if ("Requested".equalsIgnoreCase(currentStatus)) {
-                    String medicineId = model.getValueAt(modelRowIndex, medicineIdColIndex).toString();
+                    String medicineId = model.getValueAt(modelRowIndex, medicineIdColIndex).toString().trim();
 
-                    // ✅ Insert into approved_medicines_request table
                     insertStmt.setString(1, requestId);
                     insertStmt.setString(2, medicineId);
                     insertStmt.setString(3, approvedBy);
                     insertStmt.setDate(4, approvalDate);
                     insertStmt.addBatch();
 
-                    // ✅ Update both approval_status and issuing_status
                     updateStmt.setString(1, "Approved");
-                    updateStmt.setString(2, "Pending Issued"); // <--- automatic issued status
+                    updateStmt.setString(2, "Pending Issued");
                     updateStmt.setString(3, requestId);
                     updateStmt.setString(4, medicineId);
                     updateStmt.addBatch();
 
-                    // ✅ Update JTable
                     model.setValueAt("Approved", modelRowIndex, statusColIndex);
                     rowsProcessed++;
                 }
@@ -512,14 +507,11 @@ public class RequestedMedicinesSubmit extends javax.swing.JPanel {
                 return;
             }
 
-            // Execute all updates and inserts
             insertStmt.executeBatch();
             updateStmt.executeBatch();
-
-            // Update the main request header status
             updateRequestHeaderStatus(conn, requestId);
-
             conn.commit();
+
             JOptionPane.showMessageDialog(null, "Successfully approved " + rowsProcessed + " item(s).");
 
         } catch (SQLException e) {
@@ -531,9 +523,15 @@ public class RequestedMedicinesSubmit extends javax.swing.JPanel {
         JOptionPane.showMessageDialog(null, "Database connection failed: " + ex.getMessage());
     }
 }
-
+    
    private void updateRequestHeaderStatus(Connection conn, String requestId) throws SQLException {
-    String sql = "SELECT approval_status, COUNT(*) AS cnt FROM requested_items_medicines WHERE request_id = ? GROUP BY approval_status";
+    String sql = """
+        SELECT approval_status, COUNT(*) AS cnt 
+        FROM requested_items_medicines 
+        WHERE request_id = ? 
+        GROUP BY approval_status
+    """;
+
     boolean hasRequested = false;
     boolean hasApproved = false;
     boolean hasRejected = false;
@@ -542,10 +540,10 @@ public class RequestedMedicinesSubmit extends javax.swing.JPanel {
         ps.setString(1, requestId);
         try (ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
-                String s = rs.getString("approval_status");
-                if ("Requested".equalsIgnoreCase(s)) hasRequested = true;
-                if ("Approved".equalsIgnoreCase(s)) hasApproved = true;
-                if ("Rejected".equalsIgnoreCase(s)) hasRejected = true;
+                String status = rs.getString("approval_status");
+                if ("Requested".equalsIgnoreCase(status)) hasRequested = true;
+                if ("Approved".equalsIgnoreCase(status)) hasApproved = true;
+                if ("Rejected".equalsIgnoreCase(status)) hasRejected = true;
             }
         }
     }
@@ -567,13 +565,12 @@ public class RequestedMedicinesSubmit extends javax.swing.JPanel {
     try (PreparedStatement ps2 = conn.prepareStatement(updateSql)) {
         ps2.setString(1, newStatus);
         ps2.setString(2, requestId);
-        int affected = ps2.executeUpdate();
-        System.out.println("Request header updated: " + affected + " row(s)");
+        ps2.executeUpdate();
     }
 }
 
     private void rejectedbtnMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_rejectedbtnMouseClicked
-     int[] selectedRows = table_request_sts.getSelectedRows();
+    int[] selectedRows = table_request_sts.getSelectedRows();
     if (selectedRows.length == 0) {
         JOptionPane.showMessageDialog(null, "Please select at least one row to reject.");
         return;
@@ -597,28 +594,34 @@ public class RequestedMedicinesSubmit extends javax.swing.JPanel {
             return;
         }
 
-        java.sql.Date rejectedDate;
         try {
             java.util.Date utilDate = new SimpleDateFormat("yyyy-MM-dd").parse(rejectedDateStr);
-            rejectedDate = new java.sql.Date(utilDate.getTime());
+            java.sql.Date rejectedDate = new java.sql.Date(utilDate.getTime());
+            rejectSelectedItems(selectedRows, rejectedBy, rejectedDate, rejectionReason);
+            dialog.dispose();
+            rejectedbtn.setEnabled(false);
         } catch (Exception pe) {
             JOptionPane.showMessageDialog(dialog, "Invalid date format. Use yyyy-MM-dd.");
-            return;
         }
-
-        rejectSelectedItems(selectedRows, rejectedBy, rejectedDate, rejectionReason);
-        dialog.dispose();
-        rejectedbtn.setEnabled(false);
     });
 
     dialog.setVisible(true);
     }//GEN-LAST:event_rejectedbtnMouseClicked
    
-    private void rejectSelectedItems(int[] selectedRows, String rejectedBy, java.sql.Date rejectedDate, String rejectionReason) {
-    String requestId = req_id.getText();
+   private void rejectSelectedItems(int[] selectedRows, String rejectedBy, java.sql.Date rejectedDate, String rejectionReason) {
+    String requestId = req_id.getText().trim();
 
-    String insertQuery = "INSERT INTO rejected_medicines_request (request_id, medicine_id, rejection_reason, rejected_by, rejected_date) VALUES (?, ?, ?, ?, ?)";
-    String updateStatusQuery = "UPDATE requested_items_medicines SET approval_status = ? WHERE request_id = ? AND GenericID = ?";
+    String insertQuery = """
+        INSERT INTO rejected_medicines_request 
+        (request_id, medicine_id, rejection_reason, rejected_by, rejected_date) 
+        VALUES (?, ?, ?, ?, ?)
+    """;
+
+    String updateStatusQuery = """
+        UPDATE requested_items_medicines 
+        SET approval_status = ? 
+        WHERE request_id = ? AND GenericID = ?
+    """;
 
     try (Connection conn = DriverManager.getConnection(
             "jdbc:sqlserver://localhost:1433;databaseName=nchdbase;encrypt=true;trustServerCertificate=true",
@@ -645,7 +648,7 @@ public class RequestedMedicinesSubmit extends javax.swing.JPanel {
                 String currentStatus = model.getValueAt(modelRowIndex, statusColIndex).toString().trim();
 
                 if ("Requested".equalsIgnoreCase(currentStatus)) {
-                    String medicineId = model.getValueAt(modelRowIndex, medicineIdColIndex).toString();
+                    String medicineId = model.getValueAt(modelRowIndex, medicineIdColIndex).toString().trim();
 
                     insertStmt.setString(1, requestId);
                     insertStmt.setString(2, medicineId);
@@ -671,9 +674,9 @@ public class RequestedMedicinesSubmit extends javax.swing.JPanel {
 
             insertStmt.executeBatch();
             updateStmt.executeBatch();
+            updateRequestHeaderStatus(conn, requestId);
             conn.commit();
 
-            updateRequestHeaderStatus(conn, requestId); // optional: update overall status
             JOptionPane.showMessageDialog(null, "Successfully rejected " + rowsProcessed + " item(s).");
 
         } catch (SQLException e) {
@@ -682,113 +685,121 @@ public class RequestedMedicinesSubmit extends javax.swing.JPanel {
         }
 
     } catch (SQLException ex) {
-        JOptionPane.showMessageDialog(null, "Database connection failed.");
+        JOptionPane.showMessageDialog(null, "Database connection failed: " + ex.getMessage());
     }
-    }
-    
+}
+
     private void rejectedbtnMouseEntered(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_rejectedbtnMouseEntered
     
     }//GEN-LAST:event_rejectedbtnMouseEntered
  
     private void approvedallbtnMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_approvedallbtnMouseClicked
     DefaultTableModel model = (DefaultTableModel) table_request_sts.getModel();
-String requestId = req_id.getText();
+    String requestId = req_id.getText().trim();
 
-// approval panel for Approved By + Date
-ApprovalRequestPanel panel = new ApprovalRequestPanel();
-Window parentWindow = SwingUtilities.getWindowAncestor(this);
-JDialog dialog = new JDialog(parentWindow, "Approval Details", Dialog.ModalityType.APPLICATION_MODAL);
-dialog.setUndecorated(true);
-dialog.setContentPane(panel);
-dialog.pack();
-dialog.setLocationRelativeTo(this);
+    ApprovalRequestPanel panel = new ApprovalRequestPanel();
+    Window parentWindow = SwingUtilities.getWindowAncestor(this);
+    JDialog dialog = new JDialog(parentWindow, "Approval Details", Dialog.ModalityType.APPLICATION_MODAL);
+    dialog.setUndecorated(true);
+    dialog.setContentPane(panel);
+    dialog.pack();
+    dialog.setLocationRelativeTo(this);
 
-panel.getConfirmButton().addActionListener(e -> {
-    String approvedBy = panel.getApprovedBy();
-    String approvalDateStr = panel.getApprovalDateText();
+    panel.getConfirmButton().addActionListener(e -> {
+        String approvedBy = panel.getApprovedBy();
+        String approvalDateStr = panel.getApprovalDateText();
 
-    if (approvedBy.isEmpty() || approvalDateStr.isEmpty()) {
-        JOptionPane.showMessageDialog(dialog, "Please enter both Approved By and Approval Date.");
-        return;
-    }
-
-    java.sql.Date approvalDate;
-    try {
-        java.util.Date utilDate = new SimpleDateFormat("yyyy-MM-dd").parse(approvalDateStr);
-        approvalDate = new java.sql.Date(utilDate.getTime());
-    } catch (Exception pe) {
-        JOptionPane.showMessageDialog(dialog, "Invalid date format. Use yyyy-MM-dd.");
-        return;
-    }
-
-    String insertQuery = "INSERT INTO approved_medicines_request (request_id, medicine_id, approved_by, approval_date) VALUES (?, ?, ?, ?)";
-    String updateStatusQuery = "UPDATE requested_items_medicines SET approval_status = ? WHERE request_id = ? AND GenericID = ?";
-
-    try (Connection conn = DriverManager.getConnection(
-            "jdbc:sqlserver://localhost:1433;databaseName=nchdbase;encrypt=true;trustServerCertificate=true",
-            "admin", "yeyel2025")) {
-
-        conn.setAutoCommit(false);
-
-        try (PreparedStatement insertStmt = conn.prepareStatement(insertQuery);
-             PreparedStatement updateStmt = conn.prepareStatement(updateStatusQuery)) {
-
-            int statusColIndex = model.findColumn("Approval Status");
-            int medicineIdColIndex = model.findColumn("GenericID");
-
-            if (statusColIndex == -1 || medicineIdColIndex == -1) {
-                JOptionPane.showMessageDialog(null, "'Approval Status' or 'GenericID' column not found.");
-                return;
-            }
-
-            int rowsProcessed = 0;
-
-            for (int rowIndex = 0; rowIndex < model.getRowCount(); rowIndex++) {
-                String currentStatus = model.getValueAt(rowIndex, statusColIndex).toString().trim();
-
-                if ("Requested".equalsIgnoreCase(currentStatus)) {
-                    String medicineId = model.getValueAt(rowIndex, medicineIdColIndex).toString();
-
-                    insertStmt.setString(1, requestId);
-                    insertStmt.setString(2, medicineId);
-                    insertStmt.setString(3, approvedBy);
-                    insertStmt.setDate(4, approvalDate);
-                    insertStmt.addBatch();
-
-                    updateStmt.setString(1, "Approved");
-                    updateStmt.setString(2, requestId);
-                    updateStmt.setString(3, medicineId);
-                    updateStmt.addBatch();
-
-                    model.setValueAt("Approved", rowIndex, statusColIndex);
-                    rowsProcessed++;
-                }
-            }
-
-            if (rowsProcessed == 0) {
-                JOptionPane.showMessageDialog(null, "No 'Requested' rows to approve.");
-                return;
-            }
-
-            insertStmt.executeBatch();
-            updateStmt.executeBatch();
-            conn.commit();
-
-            updateRequestHeaderStatus(conn, requestId); // optional: update overall status
-            JOptionPane.showMessageDialog(null, rowsProcessed + " item(s) approved successfully.");
-            dialog.dispose();
-
-        } catch (SQLException ex) {
-            conn.rollback();
-            JOptionPane.showMessageDialog(null, "Approval failed: " + ex.getMessage());
+        if (approvedBy.isEmpty() || approvalDateStr.isEmpty()) {
+            JOptionPane.showMessageDialog(dialog, "Please enter both Approved By and Approval Date.");
+            return;
         }
 
-    } catch (SQLException ex) {
-        JOptionPane.showMessageDialog(null, "Database error: " + ex.getMessage());
-    }
-});
+        try {
+            java.util.Date utilDate = new SimpleDateFormat("yyyy-MM-dd").parse(approvalDateStr);
+            java.sql.Date approvalDate = new java.sql.Date(utilDate.getTime());
 
-dialog.setVisible(true);
+            String insertQuery = """
+                INSERT INTO approved_medicines_request 
+                (request_id, medicine_id, approved_by, approval_date) 
+                VALUES (?, ?, ?, ?)
+            """;
+
+            String updateStatusQuery = """
+                UPDATE requested_items_medicines 
+                SET approval_status = ?, issuing_status = ? 
+                WHERE request_id = ? AND GenericID = ?
+            """;
+
+            try (Connection conn = DriverManager.getConnection(
+                    "jdbc:sqlserver://localhost:1433;databaseName=nchdbase;encrypt=true;trustServerCertificate=true",
+                    "admin", "yeyel2025")) {
+
+                conn.setAutoCommit(false);
+
+                try (PreparedStatement insertStmt = conn.prepareStatement(insertQuery);
+                     PreparedStatement updateStmt = conn.prepareStatement(updateStatusQuery)) {
+
+                    int statusColIndex = model.findColumn("Approval Status");
+                    int medicineIdColIndex = model.findColumn("GenericID");
+
+                    if (statusColIndex == -1 || medicineIdColIndex == -1) {
+                        JOptionPane.showMessageDialog(null, "'Approval Status' or 'GenericID' column not found.");
+                        return;
+                    }
+
+                    int rowsProcessed = 0;
+
+                    for (int rowIndex = 0; rowIndex < model.getRowCount(); rowIndex++) {
+                        String currentStatus = model.getValueAt(rowIndex, statusColIndex).toString().trim();
+
+                        if ("Requested".equalsIgnoreCase(currentStatus)) {
+                            String medicineId = model.getValueAt(rowIndex, medicineIdColIndex).toString().trim();
+
+                            insertStmt.setString(1, requestId);
+                            insertStmt.setString(2, medicineId);
+                            insertStmt.setString(3, approvedBy);
+                            insertStmt.setDate(4, approvalDate);
+                            insertStmt.addBatch();
+
+                            updateStmt.setString(1, "Approved");
+                            updateStmt.setString(2, "Pending Issued");
+                            updateStmt.setString(3, requestId);
+                            updateStmt.setString(4, medicineId);
+                            updateStmt.addBatch();
+
+                            model.setValueAt("Approved", rowIndex, statusColIndex);
+                            rowsProcessed++;
+                        }
+                    }
+
+                    if (rowsProcessed == 0) {
+                        JOptionPane.showMessageDialog(null, "No 'Requested' rows to approve.");
+                        return;
+                    }
+
+                    insertStmt.executeBatch();
+                    updateStmt.executeBatch();
+                    updateRequestHeaderStatus(conn, requestId);
+                    conn.commit();
+
+                    JOptionPane.showMessageDialog(null, rowsProcessed + " item(s) approved successfully.");
+                    dialog.dispose();
+
+                } catch (SQLException ex) {
+                    conn.rollback();
+                    JOptionPane.showMessageDialog(null, "Approval failed: " + ex.getMessage());
+                }
+
+            } catch (SQLException ex) {
+                JOptionPane.showMessageDialog(null, "Database error: " + ex.getMessage());
+            }
+
+        } catch (Exception pe) {
+            JOptionPane.showMessageDialog(dialog, "Invalid date format. Use yyyy-MM-dd.");
+        }
+    });
+
+    dialog.setVisible(true);
     }//GEN-LAST:event_approvedallbtnMouseClicked
 
     private void approvedallbtnMouseEntered(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_approvedallbtnMouseEntered
@@ -797,9 +808,8 @@ dialog.setVisible(true);
 
     private void rejectedallMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_rejectedallMouseClicked
     {                                         
-    {
     DefaultTableModel model = (DefaultTableModel) table_request_sts.getModel();
-    String requestId = req_id.getText();
+    String requestId = req_id.getText().trim();
 
     RequestedRejectionPanel panel = new RequestedRejectionPanel();
     Window parentWindow = SwingUtilities.getWindowAncestor(this);
@@ -819,87 +829,95 @@ dialog.setVisible(true);
             return;
         }
 
-        java.sql.Date rejectedDate;
         try {
             java.util.Date utilDate = new SimpleDateFormat("yyyy-MM-dd").parse(rejectedDateStr);
-            rejectedDate = new java.sql.Date(utilDate.getTime());
-        } catch (Exception pe) {
-            JOptionPane.showMessageDialog(dialog, "Invalid date format. Use yyyy-MM-dd.");
-            return;
-        }
+            java.sql.Date rejectedDate = new java.sql.Date(utilDate.getTime());
 
-        String insertQuery = "INSERT INTO rejected_medicines_request (request_id, medicine_id, rejection_reason, rejected_by, rejected_date) VALUES (?, ?, ?, ?, ?)";
-        String updateStatusQuery = "UPDATE requested_items_medicines SET approval_status = ? WHERE request_id = ? AND GenericID = ?";
+            String insertQuery = """
+                INSERT INTO rejected_medicines_request 
+                (request_id, medicine_id, rejection_reason, rejected_by, rejected_date) 
+                VALUES (?, ?, ?, ?, ?)
+            """;
 
-        try (Connection conn = DriverManager.getConnection(
-                "jdbc:sqlserver://localhost:1433;databaseName=nchdbase;encrypt=true;trustServerCertificate=true",
-                "admin", "yeyel2025")) {
+            String updateStatusQuery = """
+                UPDATE requested_items_medicines 
+                SET approval_status = ? 
+                WHERE request_id = ? AND GenericID = ?
+            """;
 
-            conn.setAutoCommit(false);
+            try (Connection conn = DriverManager.getConnection(
+                    "jdbc:sqlserver://localhost:1433;databaseName=nchdbase;encrypt=true;trustServerCertificate=true",
+                    "admin", "yeyel2025")) {
 
-            try (PreparedStatement insertStmt = conn.prepareStatement(insertQuery);
-                 PreparedStatement updateStmt = conn.prepareStatement(updateStatusQuery)) {
+                conn.setAutoCommit(false);
 
-                int statusColIndex = model.findColumn("Approval Status");
-                int medicineIdColIndex = model.findColumn("GenericID");
+                try (PreparedStatement insertStmt = conn.prepareStatement(insertQuery);
+                     PreparedStatement updateStmt = conn.prepareStatement(updateStatusQuery)) {
 
-                if (statusColIndex == -1 || medicineIdColIndex == -1) {
-                    JOptionPane.showMessageDialog(null, "'Approval Status' or 'GenericID' column not found.");
-                    return;
-                }
+                    int statusColIndex = model.findColumn("Approval Status");
+                    int medicineIdColIndex = model.findColumn("GenericID");
 
-                int rowsProcessed = 0;
-
-                for (int rowIndex = 0; rowIndex < model.getRowCount(); rowIndex++) {
-                    String currentStatus = model.getValueAt(rowIndex, statusColIndex).toString().trim();
-
-                    if ("Requested".equalsIgnoreCase(currentStatus)) {
-                        String medicineId = model.getValueAt(rowIndex, medicineIdColIndex).toString();
-
-                        insertStmt.setString(1, requestId);
-                        insertStmt.setString(2, medicineId);
-                        insertStmt.setString(3, rejectionReason);
-                        insertStmt.setString(4, rejectedBy);
-                        insertStmt.setDate(5, rejectedDate);
-                        insertStmt.addBatch();
-
-                        updateStmt.setString(1, "Rejected");
-                        updateStmt.setString(2, requestId);
-                        updateStmt.setString(3, medicineId);
-                        updateStmt.addBatch();
-
-                        model.setValueAt("Rejected", rowIndex, statusColIndex);
-                        rowsProcessed++;
+                    if (statusColIndex == -1 || medicineIdColIndex == -1) {
+                        JOptionPane.showMessageDialog(null, "'Approval Status' or 'GenericID' column not found.");
+                        return;
                     }
+
+                    int rowsProcessed = 0;
+
+                    for (int rowIndex = 0; rowIndex < model.getRowCount(); rowIndex++) {
+                        String currentStatus = model.getValueAt(rowIndex, statusColIndex).toString().trim();
+
+                        if ("Requested".equalsIgnoreCase(currentStatus)) {
+                            String medicineId = model.getValueAt(rowIndex, medicineIdColIndex).toString().trim();
+
+                            insertStmt.setString(1, requestId);
+                            insertStmt.setString(2, medicineId);
+                            insertStmt.setString(3, rejectionReason);
+                            insertStmt.setString(4, rejectedBy);
+                            insertStmt.setDate(5, rejectedDate);
+                            insertStmt.addBatch();
+
+                            updateStmt.setString(1, "Rejected");
+                            updateStmt.setString(2, requestId);
+                            updateStmt.setString(3, medicineId);
+                            updateStmt.addBatch();
+
+                            model.setValueAt("Rejected", rowIndex, statusColIndex);
+                            rowsProcessed++;
+                        }
+                    }
+
+                    if (rowsProcessed == 0) {
+                        JOptionPane.showMessageDialog(null, "No 'Requested' rows to reject.");
+                        return;
+                    }
+
+                    insertStmt.executeBatch();
+                    updateStmt.executeBatch();
+                    updateRequestHeaderStatus(conn, requestId);
+                    conn.commit();
+
+                    JOptionPane.showMessageDialog(null, rowsProcessed + " item(s) rejected successfully.");
+                    dialog.dispose();
+
+                } catch (SQLException ex) {
+                    conn.rollback();
+                    JOptionPane.showMessageDialog(null, "Rejection failed: " + ex.getMessage());
                 }
-
-                if (rowsProcessed == 0) {
-                    JOptionPane.showMessageDialog(null, "No 'Requested' rows to reject.");
-                    return;
-                }
-
-                insertStmt.executeBatch();
-                updateStmt.executeBatch();
-                conn.commit();
-
-                updateRequestHeaderStatus(conn, requestId); // optional: update overall status
-                JOptionPane.showMessageDialog(null, rowsProcessed + " item(s) rejected successfully.");
-                dialog.dispose();
 
             } catch (SQLException ex) {
-                conn.rollback();
-                JOptionPane.showMessageDialog(null, "Rejection failed: " + ex.getMessage());
+                JOptionPane.showMessageDialog(null, "Database error: " + ex.getMessage());
             }
 
-        } catch (SQLException ex) {
-            JOptionPane.showMessageDialog(null, "Database error: " + ex.getMessage());
+        } catch (Exception pe) {
+            JOptionPane.showMessageDialog(dialog, "Invalid date format. Use yyyy-MM-dd.");
         }
     });
 
     dialog.setVisible(true);
     }//GEN-LAST:event_rejectedallMouseClicked
     }
-    }
+    
   
 
     

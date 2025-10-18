@@ -3,7 +3,7 @@ package requestpanelsSYSTEM;
     import com.toedter.calendar.JDateChooser;
     import static groovy.ui.text.FindReplaceUtility.dispose;
     import java.awt.BorderLayout;
-import java.awt.Color;
+    import java.awt.Color;
     import java.awt.Component;
     import java.awt.Window;
     import java.awt.event.ActionEvent;
@@ -64,13 +64,13 @@ import java.awt.Color;
     import javax.swing.text.BadLocationException;
     import javax.swing.text.PlainDocument;
     import java.sql.Statement;
-import java.util.HashMap;
-import java.util.Map;
+    import java.util.HashMap;
+    import java.util.Map;
     import javax.swing.DefaultComboBoxModel;
-import javax.swing.DefaultListCellRenderer;
-import javax.swing.JList;
-import javax.swing.table.DefaultTableCellRenderer;
-import javax.swing.table.JTableHeader;
+    import javax.swing.DefaultListCellRenderer;
+    import javax.swing.JList;
+    import javax.swing.table.DefaultTableCellRenderer;
+    import javax.swing.table.JTableHeader;
 
 public class RequestMedicines extends javax.swing.JPanel {
 
@@ -119,32 +119,29 @@ public class RequestMedicines extends javax.swing.JPanel {
                 }
     
     
-    
     private void setupSearchByTextField() {
-    // Preload all medicines from DB
     String dbURL = "jdbc:sqlserver://localhost:1433;databaseName=nchdbase;encrypt=true;trustServerCertificate=true";
     String dbUser = "admin";
     String dbPass = "yeyel2025";
 
-    List<String> fullMedicineList = new ArrayList<>(); // For medschoice display
-    Map<String, String> batchMap = new HashMap<>(); // Batch mapping if needed
+    List<String> fullMedicineList = new ArrayList<>();
+    Map<String, String> batchMap = new HashMap<>();
 
     try (Connection conn = DriverManager.getConnection(dbURL, dbUser, dbPass);
          Statement stmt = conn.createStatement();
          ResultSet rs = stmt.executeQuery("SELECT GenericID, GenericName, BatchNo FROM medicines")) {
 
         while (rs.next()) {
-            int id = rs.getInt("GenericID");
+            String id = rs.getString("GenericID");
             String name = rs.getString("GenericName");
             String batch = rs.getString("BatchNo");
 
             String display = id + " - " + name;
             fullMedicineList.add(display);
 
-            if (batch != null) batchMap.put(display, batch); // optional if batch needed
+            if (batch != null) batchMap.put(display, batch);
         }
 
-        // Initialize medschoice
         DefaultComboBoxModel<String> model = new DefaultComboBoxModel<>();
         model.addElement("Select Medicine");
         for (String med : fullMedicineList) model.addElement(med);
@@ -157,7 +154,6 @@ public class RequestMedicines extends javax.swing.JPanel {
         return;
     }
 
-    // Add listener to searchkey JTextField
     searchkey.getDocument().addDocumentListener(new DocumentListener() {
         private void filterMedicines() {
             SwingUtilities.invokeLater(() -> {
@@ -167,22 +163,18 @@ public class RequestMedicines extends javax.swing.JPanel {
                     return;
                 }
 
-                // Search for match in GenericID, GenericName, or BatchNo
                 for (String item : fullMedicineList) {
                     String[] parts = item.split(" - ");
                     String idPart = parts[0].toLowerCase();
                     String namePart = parts.length > 1 ? parts[1].toLowerCase() : "";
-
-                    String batch = batchMap.get(item);
-                    String batchPart = batch != null ? batch.toLowerCase() : "";
+                    String batchPart = batchMap.getOrDefault(item, "").toLowerCase();
 
                     if (idPart.contains(text) || namePart.contains(text) || batchPart.contains(text)) {
-                        medschoice.setSelectedItem(item); // automatically select in combo
-                        return; // stop at first match
+                        medschoice.setSelectedItem(item);
+                        return;
                     }
                 }
 
-                // No match found
                 medschoice.setSelectedItem("Select Medicine");
             });
         }
@@ -193,11 +185,8 @@ public class RequestMedicines extends javax.swing.JPanel {
     });
 }
   
-
-    
-    
-    private void updateStockLabel() {
-   String selected = (String) medschoice.getSelectedItem();
+   private void updateStockLabel() {
+    String selected = (String) medschoice.getSelectedItem();
     if (selected == null || selected.equals("Select Medicine")) {
         stcksmeds.setText("0");
         return;
@@ -206,13 +195,7 @@ public class RequestMedicines extends javax.swing.JPanel {
     String[] parts = selected.split(" - ");
     if (parts.length < 2) return;
 
-    int genericId;
-    try {
-        genericId = Integer.parseInt(parts[0]);
-    } catch (NumberFormatException e) {
-        stcksmeds.setText("0");
-        return;
-    }
+    String genericId = parts[0].trim(); // now treated as String
 
     String dbURL = "jdbc:sqlserver://localhost:1433;databaseName=nchdbase;encrypt=true;trustServerCertificate=true";
     String dbUser = "admin";
@@ -222,17 +205,16 @@ public class RequestMedicines extends javax.swing.JPanel {
     try (Connection conn = DriverManager.getConnection(dbURL, dbUser, dbPass);
          PreparedStatement ps = conn.prepareStatement(query)) {
 
-        ps.setInt(1, genericId);
+        ps.setString(1, genericId);
         try (ResultSet rs = ps.executeQuery()) {
             if (rs.next()) {
                 int originalStock = rs.getInt("QuantityInStock");
 
-                // Subtract already requested quantity in table
                 DefaultTableModel model = (DefaultTableModel) tablerequest.getModel();
                 int reservedQty = 0;
                 for (int i = 0; i < model.getRowCount(); i++) {
-                    int id = Integer.parseInt(model.getValueAt(i, 0).toString());
-                    if (id == genericId) {
+                    String id = model.getValueAt(i, 0).toString();
+                    if (id.equalsIgnoreCase(genericId)) {
                         reservedQty += Integer.parseInt(model.getValueAt(i, 4).toString());
                     }
                 }
@@ -247,12 +229,10 @@ public class RequestMedicines extends javax.swing.JPanel {
         stcksmeds.setText("Error");
         e.printStackTrace();
     }
-    }
+}
 
-    
-        private void loadMedicineData() {
-        
-         String dbURL = "jdbc:sqlserver://localhost:1433;databaseName=nchdbase;encrypt=true;trustServerCertificate=true";
+    private void loadMedicineData() {
+    String dbURL = "jdbc:sqlserver://localhost:1433;databaseName=nchdbase;encrypt=true;trustServerCertificate=true";
     String dbUser = "admin";
     String dbPass = "yeyel2025";
     String query = "SELECT GenericID, GenericName FROM medicines";
@@ -264,16 +244,15 @@ public class RequestMedicines extends javax.swing.JPanel {
         medschoice.removeAllItems();
         medschoice.addItem("Select Medicine");
         while (rs.next()) {
-            int id = rs.getInt("GenericID");
+            String id = rs.getString("GenericID");
             String name = rs.getString("GenericName");
             medschoice.addItem(id + " - " + name);
         }
     } catch (SQLException e) {
         JOptionPane.showMessageDialog(this, "Failed to load medicine data: " + e.getMessage());
     }
-    }
-        
-   
+}
+
         
         
     @SuppressWarnings("unchecked")
@@ -480,30 +459,24 @@ public class RequestMedicines extends javax.swing.JPanel {
 }
     
     private void addreqitemsMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_addreqitemsMouseClicked
-            String selected = (String) medschoice.getSelectedItem();
+     String selected = (String) medschoice.getSelectedItem();
     if (selected == null || selected.equals("Select Medicine")) {
         JOptionPane.showMessageDialog(null, "Please select a medicine.");
         return;
     }
 
     String[] parts = selected.split(" - ");
-    int medId;
-    try { 
-        medId = Integer.parseInt(parts[0]); 
-    } catch (NumberFormatException e) { 
-        JOptionPane.showMessageDialog(null, "Invalid selection"); 
-        return; 
-    }
+    String medId = parts[0].trim(); // GenericID is VARCHAR
 
     // Prompt quantity
     String qtyStr = JOptionPane.showInputDialog("Enter quantity to request:");
     if (qtyStr == null) return;
     int qtyReq;
-    try { 
-        qtyReq = Integer.parseInt(qtyStr); 
-    } catch (NumberFormatException e) { 
-        JOptionPane.showMessageDialog(null, "Invalid quantity."); 
-        return; 
+    try {
+        qtyReq = Integer.parseInt(qtyStr);
+    } catch (NumberFormatException e) {
+        JOptionPane.showMessageDialog(null, "Invalid quantity.");
+        return;
     }
 
     String dbURL = "jdbc:sqlserver://localhost:1433;databaseName=nchdbase;encrypt=true;trustServerCertificate=true";
@@ -514,18 +487,17 @@ public class RequestMedicines extends javax.swing.JPanel {
     try (Connection conn = DriverManager.getConnection(dbURL, dbUser, dbPass);
          PreparedStatement ps = conn.prepareStatement(query)) {
 
-        ps.setInt(1, medId);
+        ps.setString(1, medId);
         try (ResultSet rs = ps.executeQuery()) {
             if (rs.next()) {
                 int originalStock = rs.getInt("QuantityInStock");
 
-                // Check already requested quantity in table
                 DefaultTableModel model = (DefaultTableModel) tablerequest.getModel();
                 int reservedQty = 0;
                 int existingRow = -1;
                 for (int i = 0; i < model.getRowCount(); i++) {
-                    int id = Integer.parseInt(model.getValueAt(i, 0).toString());
-                    if (id == medId) {
+                    String id = model.getValueAt(i, 0).toString();
+                    if (id.equalsIgnoreCase(medId)) {
                         reservedQty = Integer.parseInt(model.getValueAt(i, 4).toString());
                         existingRow = i;
                         break;
@@ -543,26 +515,22 @@ public class RequestMedicines extends javax.swing.JPanel {
                 String expDateStr = rs.getDate("ExpDate") != null ? sdf.format(rs.getDate("ExpDate")) : "";
 
                 if (existingRow != -1) {
-                    // Update quantity in table
                     model.setValueAt(reservedQty + qtyReq, existingRow, 4);
                 } else {
-                    // Add new row
                     model.addRow(new Object[]{
-                            medId,
-                            rs.getString("GenericName"),
-                            rs.getString("Units"),
-                            rs.getString("Description"),
-                            qtyReq,
-                            mfgDateStr,
-                            expDateStr,
-                            rs.getString("BatchNo")
+                        medId,
+                        rs.getString("GenericName"),
+                        rs.getString("Units"),
+                        rs.getString("Description"),
+                        qtyReq,
+                        mfgDateStr,
+                        expDateStr,
+                        rs.getString("BatchNo")
                     });
                 }
 
-                // Update stock label temporarily
                 stcksmeds.setText(String.valueOf(originalStock - (reservedQty + qtyReq)));
 
-                // Table renderers
                 DefaultTableCellRenderer genericIdRenderer = new DefaultTableCellRenderer();
                 genericIdRenderer.setForeground(Color.RED);
                 genericIdRenderer.setHorizontalAlignment(JLabel.CENTER);
@@ -574,7 +542,6 @@ public class RequestMedicines extends javax.swing.JPanel {
                     tablerequest.getColumnModel().getColumn(i).setCellRenderer(centerRenderer);
                 }
 
-                // Reset selection & search key
                 medschoice.setSelectedItem("Select Medicine");
                 searchkey.setText("");
             }
@@ -582,11 +549,11 @@ public class RequestMedicines extends javax.swing.JPanel {
     } catch (SQLException ex) {
         ex.printStackTrace();
         JOptionPane.showMessageDialog(null, "Failed to fetch medicine data.");
-    }  
+    }
     }//GEN-LAST:event_addreqitemsMouseClicked
 
     private void submit_reqMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_submit_reqMouseClicked
-      String reqName = req_name.getText().trim();
+        String reqName = req_name.getText().trim();
     String department = (String) departmentsCombo.getSelectedItem();
     String requestDateStr = request_dates.getText().trim();
 
@@ -615,29 +582,28 @@ public class RequestMedicines extends javax.swing.JPanel {
         return;
     }
 
-    try (Connection conn = DriverManager.getConnection(
-            "jdbc:sqlserver://localhost:1433;databaseName=nchdbase;encrypt=true;trustServerCertificate=true",
-            "admin", "yeyel2025")) {
+    String dbURL = "jdbc:sqlserver://localhost:1433;databaseName=nchdbase;encrypt=true;trustServerCertificate=true";
+    String dbUser = "admin";
+    String dbPass = "yeyel2025";
 
+    try (Connection conn = DriverManager.getConnection(dbURL, dbUser, dbPass)) {
         conn.setAutoCommit(false);
 
-        // Insert request and get generated ID
-        String insertRequestSQL = "INSERT INTO requests (request_date, department, requested_by) OUTPUT INSERTED.request_id VALUES (?, ?, ?)";
-        int requestId;
+        String requestId = generateNextRequestId(conn); // ✅ Custom ID
+
+        String insertRequestSQL = """
+            INSERT INTO requests (request_id, request_date, department, requested_by)
+            VALUES (?, ?, ?, ?)
+        """;
+
         try (PreparedStatement psRequest = conn.prepareStatement(insertRequestSQL)) {
-            psRequest.setDate(1, new java.sql.Date(requestDate.getTime()));
-            psRequest.setString(2, department);
-            psRequest.setString(3, reqName);
-            try (ResultSet rs = psRequest.executeQuery()) {
-                if (rs.next()) {
-                    requestId = rs.getInt(1);
-                } else {
-                    throw new SQLException("Failed to get request ID.");
-                }
-            }
+            psRequest.setString(1, requestId);
+            psRequest.setDate(2, new java.sql.Date(requestDate.getTime()));
+            psRequest.setString(3, department);
+            psRequest.setString(4, reqName);
+            psRequest.executeUpdate();
         }
 
-        // Insert requested items with new columns
         String insertItemsSQL = """
             INSERT INTO requested_items_medicines
             (request_id, GenericID, quantity_requested, approval_status, issuing_status)
@@ -646,20 +612,20 @@ public class RequestMedicines extends javax.swing.JPanel {
 
         try (PreparedStatement psItems = conn.prepareStatement(insertItemsSQL)) {
             for (int i = 0; i < model.getRowCount(); i++) {
-                int genericId = (int) model.getValueAt(i, 0); // GenericID column
-                int qty = (int) model.getValueAt(i, 4);       // Quantity Requested
+                String genericId = model.getValueAt(i, 0).toString();
+                int qty = Integer.parseInt(model.getValueAt(i, 4).toString());
 
-                if (!medicineExists(conn, genericId)) { // validation
+                if (!medicineExists(conn, genericId)) {
                     JOptionPane.showMessageDialog(null, "Error: GenericID " + genericId + " does not exist.");
                     conn.rollback();
                     return;
                 }
 
-                psItems.setInt(1, requestId);
-                psItems.setInt(2, genericId);
+                psItems.setString(1, requestId);         // ✅ request_id is now VARCHAR
+                psItems.setString(2, genericId);
                 psItems.setInt(3, qty);
-                psItems.setString(4, "Requested");      // approval_status
-                psItems.setString(5, null);             // issuing_status = NULL initially
+                psItems.setString(4, "Requested");
+                psItems.setNull(5, java.sql.Types.VARCHAR);
 
                 psItems.addBatch();
             }
@@ -668,36 +634,50 @@ public class RequestMedicines extends javax.swing.JPanel {
 
         conn.commit();
 
-        // Clear form
         model.setRowCount(0);
         req_name.setText("");
         departmentsCombo.setSelectedIndex(0);
         request_dates.setText(new SimpleDateFormat("MM-dd-yyyy").format(new java.util.Date()));
 
-        JOptionPane.showMessageDialog(null, "Request submitted successfully!");
+        JOptionPane.showMessageDialog(null, "Request submitted successfully! ID: " + requestId);
 
     } catch (SQLException ex) {
         ex.printStackTrace();
-        JOptionPane.showMessageDialog(null, "Failed to submit the request.");
+        JOptionPane.showMessageDialog(null, "Failed to submit the request: " + ex.getMessage());
     }
     }//GEN-LAST:event_submit_reqMouseClicked
+    private String generateNextRequestId(Connection conn) throws SQLException {
+        String prefix = "REQS-";
+        String query = "SELECT MAX(request_id) FROM requests WHERE request_id LIKE 'REQS-%'";
 
+        try (Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(query)) {
+
+            if (rs.next()) {
+                String lastId = rs.getString(1); // e.g., REQS-009
+                if (lastId != null) {
+                    int num = Integer.parseInt(lastId.substring(5)); // extract 009
+                    return prefix + String.format("%03d", num + 1); // REQS-010
+                }
+            }
+        }
+        return prefix + "001"; // first ID
+    }
+
+    
     private void medschoiceActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_medschoiceActionPerformed
         // TODO add your handling code here:
     }//GEN-LAST:event_medschoiceActionPerformed
-// Helper: check if GenericID exists
-private boolean medicineExists(Connection conn, int genericId) throws SQLException {
-    String sql = "SELECT COUNT(*) FROM medicines WHERE GenericID = ?";
-    try (PreparedStatement ps = conn.prepareStatement(sql)) {
-        ps.setInt(1, genericId);
-        try (ResultSet rs = ps.executeQuery()) {
-            return rs.next() && rs.getInt(1) > 0;
+
+        private boolean medicineExists(Connection conn, String genericId) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM medicines WHERE GenericID = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, genericId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() && rs.getInt(1) > 0;
+            }
         }
     }
-  
-
-}
-    
     
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JButton addreqitems;

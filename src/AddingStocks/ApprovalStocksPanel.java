@@ -342,9 +342,8 @@ public class ApprovalStocksPanel extends javax.swing.JPanel {
     }// </editor-fold>//GEN-END:initComponents
 
     private void approvedreqMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_approvedreqMouseClicked
-    
+    {                                         
     int selectedRow = approvalstocktable.getSelectedRow();
-
     if (selectedRow == -1) {
         JOptionPane.showMessageDialog(null, "Please select a row to approve.");
         return;
@@ -358,29 +357,66 @@ public class ApprovalStocksPanel extends javax.swing.JPanel {
     String dbUser = "admin";
     String dbPass = "yeyel2025";
 
-    String updateSql = """
+    String updateStatusSql = """
         UPDATE stock_request_medicines
         SET stock_status = 'Approved'
         WHERE request_id = ? AND generic_id = ?
     """;
 
-    try (Connection conn = DriverManager.getConnection(dbURL, dbUser, dbPass);
-         PreparedStatement ps = conn.prepareStatement(updateSql)) {
+    String getQtySql = """
+        SELECT quantity_requested
+        FROM stock_request_medicines
+        WHERE request_id = ? AND generic_id = ?
+    """;
 
-        ps.setString(1, requestId);
-        ps.setString(2, genericId);
+    String updateStockSql = """
+        UPDATE medicines
+        SET QuantityInStock = QuantityInStock + ?
+        WHERE GenericID = ?
+    """;
 
-        int updated = ps.executeUpdate();
-        if (updated > 0) {
-            JOptionPane.showMessageDialog(null, "Request approved successfully.");
-            loadApprovalStockData(requestId); // refresh table
-        } else {
-            JOptionPane.showMessageDialog(null, "No matching record found to approve.");
+    try (Connection conn = DriverManager.getConnection(dbURL, dbUser, dbPass)) {
+        conn.setAutoCommit(false);
+
+        int qtyToAdd = 0;
+
+        // 🔹 Get requested quantity
+        try (PreparedStatement psQty = conn.prepareStatement(getQtySql)) {
+            psQty.setString(1, requestId);
+            psQty.setString(2, genericId);
+            try (ResultSet rs = psQty.executeQuery()) {
+                if (rs.next()) {
+                    qtyToAdd = rs.getInt("quantity_requested");
+                } else {
+                    JOptionPane.showMessageDialog(null, "No quantity found for this request.");
+                    conn.rollback();
+                    return;
+                }
+            }
         }
+
+        // 🔹 Update stock_request_medicines status
+        try (PreparedStatement psUpdateStatus = conn.prepareStatement(updateStatusSql)) {
+            psUpdateStatus.setString(1, requestId);
+            psUpdateStatus.setString(2, genericId);
+            psUpdateStatus.executeUpdate();
+        }
+
+        // 🔹 Update medicines stock
+        try (PreparedStatement psUpdateStock = conn.prepareStatement(updateStockSql)) {
+            psUpdateStock.setInt(1, qtyToAdd);
+            psUpdateStock.setString(2, genericId);
+            psUpdateStock.executeUpdate();
+        }
+
+        conn.commit();
+        JOptionPane.showMessageDialog(null, "Request approved and stock updated.");
+        loadApprovalStockData(requestId); // refresh table
 
     } catch (SQLException ex) {
         ex.printStackTrace();
         JOptionPane.showMessageDialog(null, "Database error: " + ex.getMessage());
+    }
     }//GEN-LAST:event_approvedreqMouseClicked
     }
     private void rejectedbtnMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_rejectedbtnMouseClicked

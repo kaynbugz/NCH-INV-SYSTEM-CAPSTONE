@@ -23,6 +23,7 @@ package dashboardSYSTEM;
     import java.sql.Connection;
     import java.sql.DriverManager;
     import java.sql.PreparedStatement;
+    import java.util.Date;
     import javax.swing.JOptionPane;
     import java.text.SimpleDateFormat;
     import java.util.Date;
@@ -677,6 +678,11 @@ public void updateTotals() {
                 reqmedicinesMouseClicked(evt);
             }
         });
+        reqmedicines.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                reqmedicinesActionPerformed(evt);
+            }
+        });
 
         jLabel15.setFont(new java.awt.Font("Segoe UI", 1, 14)); // NOI18N
         jLabel15.setText("Total qty of medicines");
@@ -1243,13 +1249,16 @@ public void updateTotals() {
     }//GEN-LAST:event_viewgenidMouseClicked
 
     private void reqmedicinesMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_reqmedicinesMouseClicked
-        javax.swing.JFrame frame = new javax.swing.JFrame();
-        frame.setUndecorated(true); // removes title bar and window controls
-        frame.getContentPane().add(new RequestMedicines());
-        frame.pack();
-        frame.setLocationRelativeTo(null);
-        frame.setVisible(true);
-        dispose(); // optional: close homepageSYSTEM
+          // Launch AddStocksPanelMeds directly
+            javax.swing.JFrame frame = new javax.swing.JFrame();
+            frame.setUndecorated(false);
+
+            RequestMedicines panel = new RequestMedicines();
+            frame.getContentPane().add(panel);
+
+            frame.pack();
+            frame.setLocationRelativeTo(null);
+            frame.setVisible(true);
     }//GEN-LAST:event_reqmedicinesMouseClicked
 
     private void refreshmedsMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_refreshmedsMouseClicked
@@ -1271,6 +1280,10 @@ public void updateTotals() {
 
         // Optionally, if you have any other UI components that need to be reset, you can add that here
     }//GEN-LAST:event_refreshmedsMouseClicked
+
+    private void reqmedicinesActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_reqmedicinesActionPerformed
+        // TODO add your handling code here:
+    }//GEN-LAST:event_reqmedicinesActionPerformed
   
 
 
